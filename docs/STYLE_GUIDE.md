@@ -26,11 +26,11 @@ The words determine the imagery. Do not reverse this rule just because a strikin
 
 | Speaker / words | Main visual | Message | Constraint |
 |---|---|---|---|
-| **Founder** — `I`, `my`, `I built`, `I want you` | The **actual S3 logo** as the dominant icon; optionally a *procedural, anonymous* suit/pointing-hand silhouette | A personal invitation from S3kshun8 | Exactly **two** founder-address posters in wave one. Do not invent a realistic likeness or a portrait. |
+| **Founder** — `I`, `my`, `I built`, `I want you` | A supplied logo as the dominant icon: the **actual S3 logo** on `I WANT YOU`, the DreamWeave logo on the other; optionally a *procedural, anonymous* suit/pointing-hand silhouette | A personal invitation from S3kshun8 | Exactly **two** founder-address posters in wave one. Do not invent a realistic likeness or a portrait. |
 | **Collective** — `we`, `our`, `us`, `together` | Simple anonymous **builder silhouettes**, one to three people using primitive geometry | Shared work, mutual aid, durable institutions | Never substitute the founder portrait. Avoid portraying the collective as uniformed followers. |
-| **Doctrine / capability** — imperative or neutral language | Typography, lines, modules, arrows, terminal cursors, scaffolds, simple circuitry | A principle or demonstrable utility | Prefer no human figures. Small S3 mark may sign the piece, not dominate it. |
+| **Doctrine / capability** — imperative or neutral language | Typography, lines, modules, arrows, terminal cursors, scaffolds, simple circuitry | A principle or demonstrable utility | Prefer no human figures. A small DreamWeave mark may sign the piece, not dominate it. |
 
-**`I WANT YOU` MUST center the supplied S3 emblem.** It is the founder's seal/signature, not a license to generate a face. The other direct-address poster also centers S3. On collectivist posters, any S3 mark is secondary to the builders.
+**`I WANT YOU` MUST center the supplied S3 emblem.** It is the founder's seal/signature, not a license to generate a face, and it appears on that poster alone. The other direct-address poster centers the DreamWeave logo. On collectivist and doctrine posters, the DreamWeave mark is a small signature, secondary to the builders or the diagram.
 
 ## 3. Visual ancestry, without imitation
 
@@ -45,7 +45,7 @@ The finished result must be an unmistakably original *DreamWeave software-develo
 - Small, consistent provenance/footer markings.
 - No flags, military uniforms, faux government seals, political-party marks, or implied real-government endorsement.
 
-**Explicitly avoid** nebula skies, planets, enormous crowds, complex architecture, detailed facial art, photorealistic characters, cinematic effects, excessive distress/grain, and overly intricate typography. If Magick cannot create the object from clean shapes and the supplied S3 file, simplify it.
+**Explicitly avoid** nebula skies, planets, enormous crowds, complex architecture, detailed facial art, photorealistic characters, cinematic effects, excessive distress/grain, and overly intricate typography. If Magick cannot create the object from clean shapes and the supplied logos, simplify it.
 
 ## 4. Color — the authoritative S3 palette
 
@@ -62,11 +62,11 @@ These are the campaign's palette values. Use them directly rather than inventing
 | `body` | `#F0F0F0` | Supporting copy |
 | `amber` | `#FFB000` | Optional single-point signal accent, never mandatory |
 
-Per poster: generally background + pinkwhite/body + **one** dominant purple + at most one accent. The S3 logo has native internal color/glow; **don't recolor it wholesale** in version one.
+Per poster: generally background + pinkwhite/body + **one** dominant purple + at most one accent. The logos have native internal color/glow; **don't recolor them wholesale** in version one.
 
 Combinations to start with:
 
-- Founder: black / pinkwhite / lavender; large centered S3 logo.
+- Founder: black / pinkwhite / lavender; a large centered logo.
 - Collective: black / pinkwhite / violet or orchid; geometric silhouettes in lavender.
 - Doctrine: black / pinkwhite / orchid; grid/rules/circuits in subdued violet.
 
@@ -74,13 +74,15 @@ Use solid fills or restrained two-stop gradients only. No gratuitous lens flares
 
 ## 5. Image and asset rules
 
-**The logo is supplied, never shipped.** It is its owner's file and stays out of the repository and the package. The generator reads it from wherever its operator keeps it, named with `--logo PATH`, and fails clearly when the file is missing or isn't a PNG. Do not silently replace it with generated or redrawn art.
+**The logos are supplied, never shipped.** Each is its owner's file and stays out of the repository and the package. The generator reads them from wherever its operator keeps them, the S3 logo named with `--logo PATH` and the DreamWeave logo with `--dreamweave-logo PATH`, and fails clearly when a file is missing or isn't a PNG. Do not silently replace either with generated or redrawn art.
 
-The source logo is a **512 × 512 RGBA PNG with fully opaque alpha** and a nearly black background; do **not** treat it as a cutout with pre-existing transparency. Retain the original silhouette and hand-drawn edge. Prefer presenting it in a clean square black field so there is no unwanted rectangular seam. If a mask is required for an unusual background, derive a transparent asset **deterministically** from this source, inspect the edge/glow, and retain the unmodified source.
+The S3 logo is a **512 × 512 RGBA PNG with fully opaque alpha** and a nearly black background; do **not** treat it as a cutout with pre-existing transparency. Retain the original silhouette and hand-drawn edge. Prefer presenting it in a clean square black field so there is no unwanted rectangular seam. If a mask is required for an unusual background, derive a transparent asset **deterministically** from this source, inspect the edge/glow, and retain the unmodified source.
+
+The DreamWeave logo is a **512 × 512 RGBA PNG cut out already**: a round emblem whose glow lives in its own alpha. Lay it over the poster as it is; only the faint glow that reaches the square's corners is masked away, so no square shows on black.
 
 Allowed visual sources:
 
-1. This **actual logo file**.
+1. These two **actual logo files**.
 2. Shapes, gradients, strokes, lines, simple typography, and deterministic patterns constructed by Jess and Magick, in JSL.
 3. Additional human-drawn or photographed assets **only if explicitly added and licensed/approved later**, recorded by source and author.
 
@@ -96,20 +98,22 @@ Forbidden: any generative-image service, prompt-to-image feature, image-model ou
 
 ### A. `founder-emblem` — direct-address recruitment
 
-- Header/headline: y≈125–365.
-- S3 logo centered or slightly above center, within y≈405–1175.
-- Supporting invitation y≈1230–1450.
-- CTA panel y≈1500–1625.
-- URL and provenance line y≈1670–1730.
-- Optional simple pointer formed from vector strokes/polygons; not a detailed hand or face. **The S3 is the hero**, especially on `I WANT YOU`.
+The recruitment formula's order: the hook at the top, the emblem in the center, the mission under it, and the call to action as the final strike.
+
+- Headline alone: y≈110–330.
+- The logo centered, within y≈350–1110: the S3 on `I WANT YOU`, the DreamWeave logo on the other founder poster.
+- Subheadline as the mission line, with any supporting invitation after it: y≈1150–1425. A founder poster may carry no supporting line at all; `I WANT YOU` doesn't.
+- CTA panel y≈1465–1590.
+- URL and provenance line y≈1622–1728.
+- Optional simple pointer formed from vector strokes/polygons; not a detailed hand or face. **The logo is the hero**, the S3 above all on `I WANT YOU`.
 
 ### B. `collective-builders` — shared work
 
 - Headline y≈130–415.
 - Two or three **flat procedural silhouettes** y≈470–1160: heads as circles, torsos and arms as paths/polygons, work surfaces as rectangles. Differ through pose and tool, not stereotyping.
 - A shared object to construct (a horizontal beam, three interlocking blocks, a simple terminal panel) makes their cooperation legible.
-- Support and CTA y≈1220–1630; URL/footer beneath.
-- Tiny S3 signature only; no huge brand halo obscuring the workers.
+- Support and CTA y≈1200–1590; URL/footer beneath.
+- Tiny DreamWeave signature only; no huge brand halo obscuring the workers.
 
 ### C. `doctrine-diagram` — principle or technical promise
 
@@ -162,13 +166,13 @@ Deliver both a profanity-forward edition where appropriate and an optional venue
 A poster is acceptable only if:
 
 - [ ] It is built by Jess with the Magick package, entirely in JSL; **no image model has been used**.
-- [ ] The original S3 logo, read from the file supplied with `--logo`; never a substitute.
+- [ ] The original logos, read from the files supplied with `--logo` and `--dreamweave-logo`; never a substitute.
 - [ ] The visual matches the grammatical speaker rule.
 - [ ] All copy is faithful to the committed text manifest.
 - [ ] Correct dimensions, margins, color tokens, safe areas, and legible typography.
 - [ ] No broken words, clipping, unreadable CTA, or hidden link.
 - [ ] Rerunning from the same inputs gives pixel-identical output (prefer byte-identical where practicable).
-- [ ] Font, renderer and Jess versions and the logo checksum are recorded with the build.
+- [ ] Font, renderer and Jess versions and the logos' checksums are recorded with the build.
 - [ ] Output includes accessible alt text, provenance, and a real destination.
 - [ ] A human review approves the 360 px-wide preview **before** publication.
 
