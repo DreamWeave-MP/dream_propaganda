@@ -1,0 +1,16 @@
+# dream_propaganda as a DreamWeave project: a Jess package. `jess` names the Package Source it
+# publishes, the repository root's own jess.toml, and each release tag `dream_propaganda-<version>`
+# is one version of the package, packed by the Mod Template from that tag; every push packs a
+# development build.
+id = "7dbec8fb-91c2-40d5-a71e-1f6d83d2320d"
+slug = "dream_propaganda"
+type = "tool"
+status = "active"
+
+[[maintainers]]
+name = "DreamWeave"
+url = "https://github.com/DreamWeave-MP"
+
+[package]
+format = "jpk"
+jess = "org.dreamweave.dream-propaganda"
