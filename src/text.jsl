@@ -7,8 +7,9 @@
   stack(entries, box, gap, what) -> { Block }     blocks one under another, centered in a box
 
 A size fits when every line's ink is inside the box's width and the lines' ink, one under the
-other, inside its height. Lines break only between words, into as few lines as fit, balanced so
-the longest is as short as it can be. Copy that doesn't fit at its least size is an error naming
+other, inside its height. Copy that holds line breaks is set in exactly those lines. Otherwise
+lines break only between words, into as few lines as fit, balanced so the longest is as short as
+it can be. Copy that doesn't fit at its least size is an error naming
 the box and what the copy measured: the copy is never shortened, and a box is never overrun.
 ]]
 local theme = require './theme'
@@ -165,10 +166,45 @@ end
 --- The copy set at the largest size it fits the box at, its ink at the top of the box, or nothing
 --- and why not.
 function Text.try(text: string, box: Box, style: Style): (Block?, string)
-  local words = string.split(text, ' ')
   local width, tall = box.right - box.left, box.bottom - box.top
-  local counts = math.min(style.lines, #words)
   local reason = ''
+  -- Copy that breaks its own lines keeps them: each is set as written, and only the size is
+  -- chosen.
+  local written = string.split(text, '\n')
+
+  if #written > 1 then
+    if #written > style.lines then return nil, `it breaks itself into {#written} lines, past {style.lines}` end
+
+    for size = style.most, style.least, -Step do
+      local options: truetype.Options = { tracking = style.tracking * size }
+      local widest = 0
+
+      for _, line in written do
+        local metrics = style.font:measure(line, size, options)
+
+        widest = math.max(widest, metrics.right - metrics.left)
+      end
+
+      if widest > width then
+        reason = `at {size} px its longest line as written is {math.ceil(widest)} px wide`
+        continue
+      end
+
+      local standing = height(written, size, style)
+
+      if standing > tall then
+        reason = `at {size} px it stands {math.ceil(standing)} px tall in {#written} lines`
+        continue
+      end
+
+      return placed(text, written, size, box, box.top, style), ''
+    end
+
+    return nil, reason
+  end
+
+  local words = string.split(text, ' ')
+  local counts = math.min(style.lines, #words)
   -- The settings to try, best first. Without `prefer`, the larger size wins whatever the lines;
   -- with it, fewer lines win as long as their size stays at `prefer` or above.
   local tries: { { number } } = {}

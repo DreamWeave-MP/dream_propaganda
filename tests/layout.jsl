@@ -43,6 +43,19 @@ suite.describe('fitting', function()
     expect([for line in block.lines => line.text]).toEqual { 'ONE TWO', 'THREE FOUR' }
   end)
 
+  suite.it('keeps the lines copy breaks itself into', function()
+    local block = text.fit('ONE TWO THREE\nFOUR', theme.box(0, 0, 600, 400), style(40, 60, 2), 'case')
+
+    expect([for line in block.lines => line.text]).toEqual { 'ONE TWO THREE', 'FOUR' }
+    expect(block.size).toBe(60)
+  end)
+
+  suite.it('refuses copy that breaks itself into more lines than it may have', function()
+    expect(function()
+      text.fit('ONE\nTWO\nTHREE', theme.box(0, 0, 600, 400), style(40, 60, 2), 'P99 support')
+    end).toThrow 'it breaks itself into 3 lines, past 2'
+  end)
+
   suite.it('refuses copy that does not fit at its least size, saying how it measured', function()
     expect(function()
       text.fit('THIS LINE IS FAR TOO LONG FOR ITS BOX', theme.box(0, 0, 300, 60), style(40, 60, 1), 'P99 headline')
