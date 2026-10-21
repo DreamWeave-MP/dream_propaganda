@@ -1,0 +1,191 @@
+--!strict
+--[[
+@dream-propaganda/cli: the `dream-propaganda` command line, over @dream-propaganda/commands.
+
+  run(argv) -> exit status
+  parse(argv, environment) -> (Command, nil) | (nil, message)
+
+  dream-propaganda [build] [--poster ID]... [--all] [--logo PATH] [--out-dir DIR]
+                   [--size WxH] [--edition NAME] [--debug-layout] [--no-preview]
+                   [--manifest PATH] [--editions PATH] [--font-dir DIR]
+  dream-propaganda check [--manifest PATH] [--editions PATH]
+
+`build` is the default. Without --poster every poster is built. Without --logo the logo is
+DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME. --manifest and --editions read
+the copy from files instead of the package's own posters.toml and editions.toml.
+
+Exit statuses: 0 when everything asked for was built or checked, 2 when the command line can't
+be used, 1 when the build or check failed. Messages go to standard error as
+`dream-propaganda: <message>`; what was built goes to standard output, a line a poster.
+]]
+local commands = require '@dream-propaganda/commands'
+local process = require '@dream/process'
+
+export type Command = {
+  action: 'build' | 'check' | 'help',
+  request: commands.Request,
+}
+
+local Cli = {}
+
+--- The flags that take a value.
+local Valued = { '--poster', '--logo', '--out-dir', '--edition', '--manifest', '--editions', '--font-dir', '--size' }
+
+local Usage = [[
+Usage: dream-propaganda [build] [OPTIONS]
+       dream-propaganda check [--manifest PATH] [--editions PATH]
+
+Builds OPERATION: BUILD SOMETHING's posters from their copy, the S3 logo, and installed fonts.
+
+Options:
+  --poster ID        Build this poster (repeatable); every poster without it
+  --all              Build every poster (the default)
+  --logo PATH        The S3 logo PNG [default: $DREAM_PROPAGANDA_LOGO, else ~/Pictures/s3logo.png]
+  --out-dir DIR      Where to write the posters [default: posters]
+  --size WxH         The posters' size, 1200x1800 scaled [default: 1200x1800]
+  --edition NAME     Build an edition from the editions: its copy, into DIR/NAME
+  --debug-layout     Also write each poster's layout view into DIR/debug
+  --no-preview       Don't write the 360 pixel previews into DIR/preview
+  --manifest PATH    Read the copy from this posters.toml instead of the package's
+  --editions PATH    Read the editions from this file instead of the package's
+  --font-dir DIR     Where the Noto Sans fonts are [default: /usr/share/fonts/google-noto]
+  -h, --help         Print this
+]]
+
+--- Where the logo is when no flag says: the environment's choice, or the founder's own folder.
+local function defaultLogo(environment: (string) -> string?): string?
+  local named = environment 'DREAM_PROPAGANDA_LOGO'
+  if named and named ~= '' then return named end
+
+  local home = environment 'HOME'
+  if not home or home == '' then return nil end
+
+  return `{home}/Pictures/s3logo.png`
+end
+
+--- The command an argument list asks for, or why it can't be used.
+function Cli.parse(argv: { string }, environment: (string) -> string?): (Command?, string?)
+  local action: 'build' | 'check' | 'help' = 'build'
+  local request: commands.Request = {
+    logo = '',
+    fontDirectory = '/usr/share/fonts/google-noto',
+    outDirectory = 'posters',
+    debug = false,
+    previews = true,
+  }
+  local posters: { string } = {}
+  local index = 1
+
+  if argv[1] == 'build' or argv[1] == 'check' then
+    action = argv[1] :: 'build' | 'check'
+    index = 2
+  end
+
+  while index <= #argv do
+    local flag = argv[index]
+    local value = argv[index + 1]
+    local takes = true
+
+    if flag == '-h' or flag == '--help' then return { action = 'help', request = request }, nil end
+
+    if flag == '--all' then
+      takes = false
+    elseif flag == '--debug-layout' then
+      request.debug, takes = true, false
+    elseif flag == '--no-preview' then
+      request.previews, takes = false, false
+    elseif value == nil and table.find(Valued, flag) then
+      return nil, `{flag} needs a value`
+    elseif flag == '--poster' then
+      table.insert(posters, string.upper(value))
+    elseif flag == '--logo' then
+      request.logo = value
+    elseif flag == '--out-dir' then
+      request.outDirectory = value
+    elseif flag == '--edition' then
+      request.edition = value
+    elseif flag == '--manifest' then
+      request.copy = value
+    elseif flag == '--editions' then
+      request.editions = value
+    elseif flag == '--font-dir' then
+      request.fontDirectory = value
+    elseif flag == '--size' then
+      local width, height = string.match(value, '^(%d+)x(%d+)$')
+      if not width or not height then return nil, `--size takes WIDTHxHEIGHT, not '{value}'` end
+
+      request.width, request.height = tonumber(width), tonumber(height)
+    else
+      return nil, `unknown argument '{flag}'`
+    end
+
+    index += if takes then 2 else 1
+  end
+
+  if #posters > 0 then request.posters = posters end
+
+  if action == 'build' and request.logo == '' then
+    local found = defaultLogo(environment)
+    if not found then return nil, 'no logo: pass --logo PATH, or set DREAM_PROPAGANDA_LOGO' end
+
+    request.logo = found
+  end
+
+  return { action = action, request = request }, nil
+end
+
+local function say(stream: 'stdout' | 'stderr', line: string)
+  process.write(stream, line .. '\n')
+end
+
+--- Runs a command line and returns its exit status.
+function Cli.run(argv: { string }): number
+  local command, problem = Cli.parse(argv, process.env)
+
+  if not command then
+    say('stderr', `dream-propaganda: {problem}`)
+    say('stderr', "Try 'dream-propaganda --help'.")
+
+    return 2
+  end
+
+  if command.action == 'help' then
+    process.write('stdout', Usage)
+
+    return 0
+  end
+
+  -- A build raises on copy that doesn't fit, a logo that isn't there, and every other refusal:
+  -- each is reported here as the command's failure rather than as a crash.
+  local succeeded, outcome = pcall(function(): unknown
+    if command.action == 'check' then return commands.check(command.request) end
+
+    return commands.build(command.request)
+  end)
+
+  if not succeeded then
+    say('stderr', `dream-propaganda: {outcome}`)
+
+    return 1
+  end
+
+  if command.action == 'check' then
+    local checked = outcome :: commands.Checked
+
+    say('stdout', `{checked.name}: {checked.posters} posters, editions: {table.concat(checked.editions, ', ')}`)
+
+    return 0
+  end
+
+  local built = outcome :: commands.Build
+
+  for _, poster in built.posters do
+    say('stdout', `{poster.id}  {built.directory}/{poster.file}  {poster.width}x{poster.height}  {string.format('%.2f', poster.seconds)}s`)
+  end
+
+  say('stdout', `manifest  {built.manifest}`)
+
+  return 0
+end
+
+return Cli

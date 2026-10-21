@@ -1,0 +1,338 @@
+--!strict
+--[[
+@dream-propaganda/commands: the campaign's builds as requests and results, for a command line,
+a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
+
+  build(request) -> Build       render posters and write them, their alt text and the manifest
+  check(request) -> Checked     read and validate the copy and the editions, drawing nothing
+
+A build reads the copy (the package's own posters.toml and editions.toml unless the request
+names others), the logo, and three installed fonts, and writes into its output folder, for each
+poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the alt text), and `manifest.json`, which records
+every input's digest and every output's. An edition writes into a folder of its name inside the
+output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
+a poster.
+]]
+local bytes = require '@dream/bytes'
+local campaign = require '@dream-propaganda/campaign'
+local fs = require '@dream/fs'
+local json = require '@jess/json'
+local magick = require '@magick'
+local propaganda = require '@dream-propaganda'
+local theme = require './theme'
+local toml = require '@jess/data/toml'
+local truetype = require '@truetype'
+
+--- What to build. `copy` and `editions` are paths to read instead of the package's own files;
+--- `posters` are ids, all of them when left out; `width` and `height` are the posters' size, the
+--- canonical 1200 by 1800 when left out, and must keep its shape.
+export type Request = {
+  copy: string?,
+  editions: string?,
+  edition: string?,
+  logo: string,
+  fontDirectory: string,
+  posters: { string }?,
+  outDirectory: string,
+  width: number?,
+  height: number?,
+  debug: boolean?,
+  previews: boolean?,
+}
+
+--- One poster built: its id, the files written (paths inside the output folder), its size, the
+--- PNG's digest, how many primitives its picture took, and how long it took, in seconds.
+export type Poster = {
+  id: string,
+  file: string,
+  alt: string,
+  preview: string?,
+  debug: string?,
+  width: number,
+  height: number,
+  sha256: string,
+  primitives: number,
+  seconds: number,
+}
+
+export type Build = { directory: string, manifest: string, posters: { Poster } }
+
+export type Checked = { name: string, posters: number, editions: { string } }
+
+local Commands = {}
+
+--- How wide a preview is: what the style guide says a phone shows.
+local PreviewWidth = 360
+
+local PngSignature = '\137PNG\r\n\26\n'
+
+--- A file the package ships, as text.
+local function shipped(path: string): string
+  local data = jess.payload().read(path)
+  if not data then error(`the package lacks {path}`, 0) end
+
+  return buffer.tostring(data)
+end
+
+--- A file's text, or an error that says which file and why.
+local function readText(path: string, what: string): string
+  local text, problem = fs.readFileString(path)
+  if not text then error(`can't read {what} {path}: {problem}`, 0) end
+
+  return text
+end
+
+--- Writes a file, creating its folder, or raises the write's own message.
+local function write(path: string, data: buffer | string)
+  local written, problem = fs.writeFile(path, data, { atomic = true, createParents = true })
+  if not written then error(`can't write {path}: {problem}`, 0) end
+end
+
+--- The copy and its editions, with the text each was read from.
+local function load(request: Request): (campaign.Campaign, { [string]: campaign.Edition }, string, string)
+  local copyText = if request.copy then readText(request.copy, 'the copy') else shipped 'posters.toml'
+  local editionsText = if request.editions then readText(request.editions, 'the editions') else shipped 'editions.toml'
+  local read = campaign.decode(copyText, request.copy or 'posters.toml')
+  local editions = campaign.decodeEditions(editionsText, read, request.editions or 'editions.toml')
+
+  return read, editions, copyText, editionsText
+end
+
+--- The logo's bytes and image: the file must be there, readable, and a PNG. It is never replaced
+--- by anything else.
+local function logoAt(path: string): (buffer, magick.Image)
+  local hint = 'pass --logo with the path to the S3 logo PNG'
+
+  if not fs.isFile(path) then error(`no logo at {path}: {hint}`, 0) end
+
+  local data, problem = fs.readFile(path)
+  if not data then error(`can't read the logo {path}: {problem}`, 0) end
+
+  if buffer.len(data) < 8 or buffer.readstring(data, 0, 8) ~= PngSignature then
+    error(`the logo {path} is not a PNG: {hint}`, 0)
+  end
+
+  return data, magick.readPNG(data)
+end
+
+--- A font's record for the manifest.
+type FontRecord = { role: string, file: string, family: string, subfamily: string, version: string, sha256: string }
+
+--- The three fonts by role, and what the manifest says of them.
+local function fontsIn(directory: string): ({ [string]: truetype.Font }, { FontRecord })
+  local loaded: { [string]: truetype.Font } = {}
+  local records: { FontRecord } = {}
+
+  for _, role in { 'display', 'support', 'mono' } do
+    local file = (theme.Fonts :: { [string]: string })[role]
+    local path = fs.join(directory, file)
+
+    if not fs.isFile(path) then
+      error(`the {role} font {file} isn't in {directory}: install Noto Sans and Noto Sans Mono, or pass --font-dir`, 0)
+    end
+
+    local data, problem = fs.readFile(path)
+    if not data then error(`can't read the font {path}: {problem}`, 0) end
+
+    local font = truetype.load(data)
+
+    loaded[role] = font
+    table.insert(records, {
+      role = role,
+      file = file,
+      family = font.family,
+      subfamily = font.subfamily,
+      version = font.version,
+      sha256 = bytes.sha256(data),
+    })
+  end
+
+  return loaded, records
+end
+
+--- The scale a requested size is of the canonical canvas, or an error when it changes its shape.
+local function scaleOf(request: Request): number
+  local width, height = request.width or theme.Width, request.height or theme.Height
+  local scale = width / theme.Width
+
+  if width < 1 or width % 1 ~= 0 or math.floor(theme.Height * scale + 0.5) ~= height then
+    error(`{width}x{height} isn't {theme.Width}x{theme.Height} scaled; another shape needs its own layout`, 0)
+  end
+
+  return scale
+end
+
+--- The package's own id and version, and what it requires of its dependencies.
+local function renderer(): { [string]: unknown }
+  local manifest = toml.decode(shipped 'jess.toml') :: { [string]: { [string]: unknown } }
+
+  return {
+    package = manifest.package.id,
+    version = manifest.package.version,
+    requires = manifest.dependencies,
+    jess = jess.version,
+  }
+end
+
+--- Reads and validates the copy and the editions, drawing nothing.
+function Commands.check(request: Request): Checked
+  local read, editions = load(request)
+  local names: { string } = {}
+
+  for name in editions do
+    table.insert(names, name)
+  end
+
+
+  table.sort(names)
+
+  return { name = read.name, posters = #read.posters, editions = names }
+end
+
+--- Renders the posters a request asks for and writes them, their alt text, previews and layout
+--- views when asked, and the manifest.
+function Commands.build(request: Request): Build
+  local read, editions, copyText, editionsText = load(request)
+  local edition: campaign.Edition? = nil
+
+  if request.edition then
+    edition = editions[request.edition]
+    if not edition then error(`no edition '{request.edition}' in the editions`, 0) end
+  end
+
+  local scale = scaleOf(request)
+  local logoData, logo = logoAt(request.logo)
+  local fonts, fontRecords = fontsIn(request.fontDirectory)
+  local assets: propaganda.Assets = {
+    fonts = { display = fonts.display, support = fonts.support, mono = fonts.mono },
+    logo = logo,
+  }
+
+  local posters = campaign.apply(read, edition)
+  local wanted = request.posters
+  local chosen: { campaign.Poster } = {}
+
+  if wanted then
+    for _, id in wanted do
+      local found = [for poster in posters if poster.id == id => poster]
+
+      if #found == 0 then error(`no poster {id} in the copy`, 0) end
+
+      table.insert(chosen, found[1])
+    end
+  else
+    chosen = posters
+  end
+
+  local directory = if edition then fs.join(request.outDirectory, edition.name) else request.outDirectory
+  local built: { Poster } = {}
+
+  for _, poster in chosen do
+    local started = os.clock()
+    local rendered = propaganda.render(poster, assets, { scale = scale })
+    local name = `{poster.id}-{campaign.slug(poster.headline)}`
+    local encoded = magick.png(rendered.image)
+    local entry: Poster = {
+      id = poster.id,
+      file = `{name}.png`,
+      alt = `{name}.txt`,
+      width = rendered.image.width,
+      height = rendered.image.height,
+      sha256 = bytes.sha256(encoded),
+      primitives = rendered.primitives,
+      seconds = 0,
+    }
+
+    write(fs.join(directory, entry.file), encoded)
+    write(fs.join(directory, entry.alt), poster.alt .. '\n')
+
+    if request.previews ~= false then
+      local previewHeight = math.floor(rendered.image.height * PreviewWidth / rendered.image.width + 0.5)
+
+      entry.preview = `preview/{name}.png`
+      write(fs.join(directory, 'preview', `{name}.png`), magick.png(rendered.image:scale(PreviewWidth, previewHeight)))
+    end
+
+    if request.debug then
+      entry.debug = `debug/{name}.png`
+      write(fs.join(directory, 'debug', `{name}.png`), magick.png(propaganda.debug(rendered)))
+    end
+
+    entry.seconds = os.clock() - started
+    table.insert(built, entry)
+  end
+
+  local inputs = {
+    copy = { file = if request.copy then fs.fileName(request.copy) else 'posters.toml', sha256 = bytes.sha256(copyText) },
+    editions = {
+      file = if request.editions then fs.fileName(request.editions) else 'editions.toml',
+      sha256 = bytes.sha256(editionsText),
+    },
+    -- The logo by its name and digest only: where it lives on someone's machine is theirs.
+    logo = { file = fs.fileName(request.logo), sha256 = bytes.sha256(logoData), width = logo.width, height = logo.height },
+    fonts = fontRecords,
+  }
+  local manifestPath = fs.join(directory, 'manifest.json')
+  local entries: { [string]: unknown } = {}
+
+  -- A build of some posters keeps the others an earlier build recorded from the same inputs.
+  if wanted and fs.isFile(manifestPath) then
+    -- @jess/json's decode throws on a document that isn't JSON: one that isn't is replaced.
+    local decoded, earlier = pcall(json.decode, readText(manifestPath, 'the manifest'), nil)
+    local recorded = if decoded and type(earlier) == 'table' then earlier :: { [string]: unknown } else nil
+    local same = recorded and json.encodeTable(recorded.inputs) == json.encodeTable(inputs) and recorded.size == `{theme.Width * scale}x{theme.Height * scale}`
+
+    if recorded and same and type(recorded.posters) == 'table' then
+      for _, poster in recorded.posters :: { { [string]: unknown } } do
+        entries[poster.id :: string] = poster
+      end
+    end
+  end
+
+  for index, entry in built do
+    local poster = chosen[index]
+
+    entries[entry.id] = {
+      id = entry.id,
+      voice = poster.voice,
+      template = poster.template,
+      subject = poster.subject,
+      headline = poster.headline,
+      destination = poster.destination,
+      file = entry.file,
+      altFile = entry.alt,
+      alt = poster.alt,
+      preview = entry.preview,
+      width = entry.width,
+      height = entry.height,
+      sha256 = entry.sha256,
+      primitives = entry.primitives,
+    }
+  end
+
+  local ids: { string } = {}
+
+  for id in entries do
+    table.insert(ids, id)
+  end
+
+
+  table.sort(ids)
+
+  local document = {
+    campaign = read.name,
+    campaignVersion = read.version,
+    edition = if edition then edition.name else 'canonical',
+    size = `{theme.Width * scale}x{theme.Height * scale}`,
+    renderer = renderer(),
+    palette = theme.Palette,
+    inputs = inputs,
+    posters = [for id in ids => entries[id]],
+  }
+
+  write(manifestPath, json.encodeTable(document, { indent = 2 }) .. '\n')
+
+  return { directory = directory, manifest = manifestPath, posters = built }
+end
+
+return Commands

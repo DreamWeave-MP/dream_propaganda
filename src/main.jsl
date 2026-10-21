@@ -1,0 +1,6 @@
+--!strict
+-- The `dream-propaganda` command target's entry: the command line's arguments in, the exit status
+-- out.
+local cli = require '@dream-propaganda/cli'
+
+return cli.run { ... }

@@ -4,6 +4,7 @@ manifest_version = 1
 id = "org.dreamweave.dream-propaganda"
 version = "0.1.0"
 jess_api = "1"
+default_target = "dream-propaganda"
 include = ["src", "docs", "posters.toml", "editions.toml", "LICENSE-MIT", "LICENSE-APACHE"]
 tests = []
 
@@ -14,12 +15,26 @@ tests = []
 [modules]
 "@dream-propaganda" = "src/init.jsl"
 "@dream-propaganda/campaign" = "src/campaign.jsl"
+"@dream-propaganda/commands" = "src/commands.jsl"
+"@dream-propaganda/cli" = "src/cli.jsl"
 
 # Every module is inert API: it does nothing until something requires it, and runs with the
-# authority of whatever calls it. Drawing reads and writes nothing: its caller hands it the copy,
-# the fonts and the logo, and does what it likes with the image.
+# authority of whatever calls it. A build reads the copy, the logo and the fonts, and writes the
+# posters, so its caller needs to read and write files.
 
 [[layer]]
 id = "dream-propaganda.core"
 requires = ["org.dreamweave.magick", "truetype.core"]
-exports = ["@dream-propaganda", "@dream-propaganda/campaign"]
+exports = ["@dream-propaganda", "@dream-propaganda/campaign", "@dream-propaganda/commands", "@dream-propaganda/cli"]
+
+# The command line: `src/main.jsl` hands its arguments to `@dream-propaganda/cli`. A build reads
+# the copy, the logo and the fonts (filesystem.read) and writes the posters, their alt text,
+# previews and manifest (filesystem.write); without --logo it reads DREAM_PROPAGANDA_LOGO and HOME
+# to find the logo (process.environment); it prints what it built (process.stdio). It runs no
+# other program and opens no connection: nothing is downloaded and no image service is asked.
+
+[targets.dream-propaganda]
+kind = "command"
+command = "dream-propaganda"
+entry = "src/main.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.environment", "process.stdio"]
