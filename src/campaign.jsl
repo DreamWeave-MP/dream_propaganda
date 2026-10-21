@@ -47,7 +47,7 @@ local Campaign = {}
 
 --- The template each voice is drawn with, and the subjects that template draws.
 local Templates: { [string]: { template: string, subjects: { string } } } = {
-  founder = { template = 'founder-emblem', subjects = { 's3-logo' } },
+  founder = { template = 'founder-emblem', subjects = { 's3-logo', 'dreamweave-logo' } },
   collective = {
     template = 'collective-builders',
     subjects = { 'three-builders', 'shared-beam', 'builders-with-tools', 'interlocking-blocks' },

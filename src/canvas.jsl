@@ -68,6 +68,12 @@ function Canvas.screen(canvas: Canvas, image: magick.Image, left: number, top: n
   canvas.image:screen(image, math.floor(left * canvas.scale + 0.5), math.floor(top * canvas.scale + 0.5))
 end
 
+--- Lays an image over the canvas, its top left corner at a canonical point; the image is at the
+--- canvas's size already.
+function Canvas.over(canvas: Canvas, image: magick.Image, left: number, top: number)
+  canvas.image:over(image, math.floor(left * canvas.scale + 0.5), math.floor(top * canvas.scale + 0.5))
+end
+
 --- A canonical length in the canvas's pixels, whole.
 function Canvas.pixels(canvas: Canvas, length: number): number
   return math.max(1, math.floor(length * canvas.scale + 0.5))

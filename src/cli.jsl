@@ -5,14 +5,15 @@
   run(argv) -> exit status
   parse(argv, environment) -> (Command, nil) | (nil, message)
 
-  dream-propaganda [build] [--poster ID]... [--all] [--logo PATH] [--out-dir DIR]
-                   [--size WxH] [--edition NAME] [--debug-layout] [--no-preview]
-                   [--manifest PATH] [--editions PATH] [--font-dir DIR]
+  dream-propaganda [build] [--poster ID]... [--all] [--logo PATH] [--dreamweave-logo PATH]
+                   [--out-dir DIR] [--size WxH] [--edition NAME] [--debug-layout]
+                   [--no-preview] [--manifest PATH] [--editions PATH] [--font-dir DIR]
   dream-propaganda check [--manifest PATH] [--editions PATH]
 
-`build` is the default. Without --poster every poster is built. Without --logo the logo is
-DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME. --manifest and --editions read
-the copy from files instead of the package's own posters.toml and editions.toml.
+`build` is the default. Without --poster every poster is built. Without --logo the S3 logo is
+DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME; without --dreamweave-logo the
+DreamWeave logo is DREAM_PROPAGANDA_DREAMWEAVE_LOGO. --manifest and --editions read the copy from
+files instead of the package's own posters.toml and editions.toml.
 
 Exit statuses: 0 when everything asked for was built or checked, 2 when the command line can't
 be used, 1 when the build or check failed. Messages go to standard error as
@@ -29,18 +30,21 @@ export type Command = {
 local Cli = {}
 
 --- The flags that take a value.
-local Valued = { '--poster', '--logo', '--out-dir', '--edition', '--manifest', '--editions', '--font-dir', '--size' }
+local Valued = { '--poster', '--logo', '--dreamweave-logo', '--out-dir', '--edition', '--manifest', '--editions', '--font-dir', '--size' }
 
 local Usage = [[
 Usage: dream-propaganda [build] [OPTIONS]
        dream-propaganda check [--manifest PATH] [--editions PATH]
 
-Builds OPERATION: BUILD SOMETHING's posters from their copy, the S3 logo, and installed fonts.
+Builds OPERATION: BUILD SOMETHING's posters from their copy, the S3 and DreamWeave logos, and
+installed fonts.
 
 Options:
   --poster ID        Build this poster (repeatable); every poster without it
   --all              Build every poster (the default)
   --logo PATH        The S3 logo PNG [default: $DREAM_PROPAGANDA_LOGO, else ~/Pictures/s3logo.png]
+  --dreamweave-logo PATH
+                     The DreamWeave logo PNG [default: $DREAM_PROPAGANDA_DREAMWEAVE_LOGO]
   --out-dir DIR      Where to write the posters [default: posters]
   --size WxH         The posters' size, 1200x1800 scaled [default: 1200x1800]
   --edition NAME     Build an edition from the editions: its copy, into DIR/NAME
@@ -52,7 +56,7 @@ Options:
   -h, --help         Print this
 ]]
 
---- Where the logo is when no flag says: the environment's choice, or the founder's own folder.
+--- Where the S3 logo is when no flag says: the environment's choice, or the founder's own folder.
 local function defaultLogo(environment: (string) -> string?): string?
   local named = environment 'DREAM_PROPAGANDA_LOGO'
   if named and named ~= '' then return named end
@@ -67,7 +71,8 @@ end
 function Cli.parse(argv: { string }, environment: (string) -> string?): (Command?, string?)
   local action: 'build' | 'check' | 'help' = 'build'
   local request: commands.Request = {
-    logo = '',
+    s3Logo = '',
+    dreamweaveLogo = '',
     fontDirectory = '/usr/share/fonts/google-noto',
     outDirectory = 'posters',
     debug = false,
@@ -99,7 +104,9 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
     elseif flag == '--poster' then
       table.insert(posters, string.upper(value))
     elseif flag == '--logo' then
-      request.logo = value
+      request.s3Logo = value
+    elseif flag == '--dreamweave-logo' then
+      request.dreamweaveLogo = value
     elseif flag == '--out-dir' then
       request.outDirectory = value
     elseif flag == '--edition' then
@@ -124,11 +131,21 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
 
   if #posters > 0 then request.posters = posters end
 
-  if action == 'build' and request.logo == '' then
+  if action == 'build' and request.s3Logo == '' then
     local found = defaultLogo(environment)
-    if not found then return nil, 'no logo: pass --logo PATH, or set DREAM_PROPAGANDA_LOGO' end
+    if not found then return nil, 'no S3 logo: pass --logo PATH, or set DREAM_PROPAGANDA_LOGO' end
 
-    request.logo = found
+    request.s3Logo = found
+  end
+
+  if action == 'build' and request.dreamweaveLogo == '' then
+    local named = environment 'DREAM_PROPAGANDA_DREAMWEAVE_LOGO'
+
+    if not named or named == '' then
+      return nil, 'no DreamWeave logo: pass --dreamweave-logo PATH, or set DREAM_PROPAGANDA_DREAMWEAVE_LOGO'
+    end
+
+    request.dreamweaveLogo = named
   end
 
   return { action = action, request = request }, nil

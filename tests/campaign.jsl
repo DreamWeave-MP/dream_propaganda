@@ -39,10 +39,12 @@ suite.describe('posters.toml', function()
     expect([for poster in read.posters => poster.id]).toEqual { 'P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08', 'P09', 'P10' }
   end)
 
-  suite.it('draws the founder only with the S3 logo and the collective only with builders', function()
+  suite.it('draws the founder only with a logo, the S3 logo on P01 alone, and the collective only with builders', function()
     for _, poster in support.campaign().posters do
-      if poster.voice == 'founder' then
+      if poster.id == 'P01' then
         expect({ poster.template, poster.subject }).toEqual { 'founder-emblem', 's3-logo' }
+      elseif poster.voice == 'founder' then
+        expect({ poster.template, poster.subject }).toEqual { 'founder-emblem', 'dreamweave-logo' }
       elseif poster.voice == 'collective' then
         expect(poster.template).toBe 'collective-builders'
         expect(poster.subject == 's3-logo').toBe(false)

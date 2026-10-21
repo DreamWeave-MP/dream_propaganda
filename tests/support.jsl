@@ -1,8 +1,9 @@
 --!strict
--- What the suites share: the package's folder, the installed fonts, and a stand-in for the logo.
--- The real logo is the founder's file and isn't in the repository, so the suites draw with a
--- square of their own instead: a ring on near-black, 512 pixels, opaque, like the real one in
--- shape and in nothing else. It is only ever written under target/.
+-- What the suites share: the package's folder, the installed fonts, and stand-ins for the logos.
+-- The real logos are their owners' files and aren't in the repository, so the suites draw with
+-- squares of their own instead, like the real ones in shape and in nothing else: for the S3 logo
+-- an opaque ring on near-black, and for the DreamWeave logo a ring cut out of a clear square.
+-- They are only ever written under target/.
 local fs = require '@dream/fs'
 local magick = require '@magick'
 local path = require '@magick/path'
@@ -35,11 +36,20 @@ local function font(file: string): truetype.Font
   return truetype.load(location)
 end
 
---- The stand-in logo.
-function Support.logo(): magick.Image
+--- The stand-in S3 logo: opaque, on near-black.
+function Support.s3Logo(): magick.Image
   local image = magick.new(512, 512, '#050505')
 
   path.new():ring(256, 256, 200, 170):fill(image, '#DA96E0')
+
+  return image
+end
+
+--- The stand-in DreamWeave logo: a ring on clear.
+function Support.dreamweaveLogo(): magick.Image
+  local image = magick.new(512, 512)
+
+  path.new():ring(256, 256, 240, 200):fill(image, '#A269A7')
 
   return image
 end
@@ -53,7 +63,8 @@ function Support.assets(): propaganda.Assets
   local theme = propaganda.theme
   local assets: propaganda.Assets = {
     fonts = { display = font(theme.Fonts.display), support = font(theme.Fonts.support), mono = font(theme.Fonts.mono) },
-    logo = Support.logo(),
+    s3 = Support.s3Logo(),
+    dreamweave = Support.dreamweaveLogo(),
   }
 
   cached = assets

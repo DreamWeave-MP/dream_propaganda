@@ -6,9 +6,9 @@
   debug(rendered) -> Image                         the same poster with its layout drawn over it
   campaign                                         @dream-propaganda/campaign
 
-Each voice has its template: the founder's posters show the supplied S3 logo, the collective's
+Each voice has its template: the founder's posters show a supplied logo, the collective's
 anonymous builders at shared work, the doctrine's a diagram. Everything is drawn from primitives,
-the copy and that logo, by @magick and @truetype, so the same inputs make the same pixels.
+the copy and the logos, by @magick and @truetype, so the same inputs make the same pixels.
 Copy that doesn't fit, or anything placed outside the safe area, stops the poster rather than
 shipping it.
 ]]

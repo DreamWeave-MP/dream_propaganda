@@ -7,7 +7,7 @@ a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
   check(request) -> Checked     read and validate the copy and the editions, drawing nothing
 
 A build reads the copy (the package's own posters.toml and editions.toml unless the request
-names others), the logo, and three installed fonts, and writes into its output folder, for each
+names others), the S3 and DreamWeave logos, and three installed fonts, and writes into its output folder, for each
 poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the alt text), and `manifest.json`, which records
 every input's digest and every output's. An edition writes into a folder of its name inside the
 output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
@@ -25,12 +25,14 @@ local truetype = require '@truetype'
 
 --- What to build. `copy` and `editions` are paths to read instead of the package's own files;
 --- `posters` are ids, all of them when left out; `width` and `height` are the posters' size, the
---- canonical 1200 by 1800 when left out, and must keep its shape.
+--- canonical 1200 by 1800 when left out, and must keep its shape. `s3Logo` and `dreamweaveLogo`
+--- are the two logos' PNGs.
 export type Request = {
   copy: string?,
   editions: string?,
   edition: string?,
-  logo: string,
+  s3Logo: string,
+  dreamweaveLogo: string,
   fontDirectory: string,
   posters: { string }?,
   outDirectory: string,
@@ -98,18 +100,18 @@ local function load(request: Request): (campaign.Campaign, { [string]: campaign.
   return read, editions, copyText, editionsText
 end
 
---- The logo's bytes and image: the file must be there, readable, and a PNG. It is never replaced
---- by anything else.
-local function logoAt(path: string): (buffer, magick.Image)
-  local hint = 'pass --logo with the path to the S3 logo PNG'
+--- A logo's bytes and image: the file must be there, readable, and a PNG. It is never replaced
+--- by anything else. `name` is the logo's and `flag` the one that names it, for the messages.
+local function logoAt(path: string, name: string, flag: string): (buffer, magick.Image)
+  local hint = `pass {flag} with the path to the {name} logo PNG`
 
-  if not fs.isFile(path) then error(`no logo at {path}: {hint}`, 0) end
+  if not fs.isFile(path) then error(`no {name} logo at {path}: {hint}`, 0) end
 
   local data, problem = fs.readFile(path)
-  if not data then error(`can't read the logo {path}: {problem}`, 0) end
+  if not data then error(`can't read the {name} logo {path}: {problem}`, 0) end
 
   if buffer.len(data) < 8 or buffer.readstring(data, 0, 8) ~= PngSignature then
-    error(`the logo {path} is not a PNG: {hint}`, 0)
+    error(`the {name} logo {path} is not a PNG: {hint}`, 0)
   end
 
   return data, magick.readPNG(data)
@@ -201,11 +203,13 @@ function Commands.build(request: Request): Build
   end
 
   local scale = scaleOf(request)
-  local logoData, logo = logoAt(request.logo)
+  local s3Data, s3 = logoAt(request.s3Logo, 'S3', '--logo')
+  local dreamweaveData, dreamweave = logoAt(request.dreamweaveLogo, 'DreamWeave', '--dreamweave-logo')
   local fonts, fontRecords = fontsIn(request.fontDirectory)
   local assets: propaganda.Assets = {
     fonts = { display = fonts.display, support = fonts.support, mono = fonts.mono },
-    logo = logo,
+    s3 = s3,
+    dreamweave = dreamweave,
   }
 
   local posters = campaign.apply(read, edition)
@@ -268,8 +272,16 @@ function Commands.build(request: Request): Build
       file = if request.editions then fs.fileName(request.editions) else 'editions.toml',
       sha256 = bytes.sha256(editionsText),
     },
-    -- The logo by its name and digest only: where it lives on someone's machine is theirs.
-    logo = { file = fs.fileName(request.logo), sha256 = bytes.sha256(logoData), width = logo.width, height = logo.height },
+    -- The logos by their names and digests only: where they live on someone's machine is theirs.
+    logos = {
+      s3 = { file = fs.fileName(request.s3Logo), sha256 = bytes.sha256(s3Data), width = s3.width, height = s3.height },
+      dreamweave = {
+        file = fs.fileName(request.dreamweaveLogo),
+        sha256 = bytes.sha256(dreamweaveData),
+        width = dreamweave.width,
+        height = dreamweave.height,
+      },
+    },
     fonts = fontRecords,
   }
   local manifestPath = fs.join(directory, 'manifest.json')

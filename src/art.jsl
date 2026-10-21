@@ -1,16 +1,18 @@
 --!strict
 --[[
-@dream-propaganda/art: the pictures, from primitives and the one supplied logo.
+@dream-propaganda/art: the pictures, from primitives and the two supplied logos.
 
-  logo(source, size) -> Image          the logo at a size, its square edge feathered away
+  founderLogo(source, size) -> Image   the S3 logo at a size, its square edge feathered away
+  emblem(source, size) -> Image        the DreamWeave logo at a size
   builder(pose) -> { Part }            an anonymous builder: a head, a body, two arms
   tablet / wrench / block              what builders hold and build
 
-The logo is the founder's own file, never redrawn. It is opaque on a near-black square, so it is
-screened onto the poster rather than laid over it: screening black changes nothing, so the
-square's ground disappears into the poster's and its glow and color come through. Its outermost
-band is feathered to nothing first, because the square's edge isn't black everywhere (the flare
-reaches the right edge) and would otherwise show as a seam.
+The logos are their owners' files, never redrawn. The S3 logo is opaque on a near-black square,
+so it is screened onto the poster rather than laid over it: screening black changes nothing, so
+the square's ground disappears into the poster's and its glow and color come through. Its
+outermost band is feathered to nothing first, because the square's edge isn't black everywhere
+(the flare reaches the right edge) and would otherwise show as a seam. The DreamWeave logo is cut
+out already, its halo in its own alpha, so it is laid over the poster as it is.
 
 Builders are four primitives each, flat and faceless, so three of them and what they build stay
 within the style guide's budget of 25.
@@ -37,10 +39,28 @@ local Art = {}
 --- How much of the logo's side the feather takes, and how soft it is.
 local FeatherInset, FeatherSoftness = 0.05, 0.03
 
---- The logo at `size` pixels square, resampled from the source (by area when it shrinks, by
---- interpolation when it grows), its alpha feathered from opaque inside to clear at the edge.
-function Art.logo(source: magick.Image, size: number): magick.Image
-  local sized = if size < source.width then source:scale(size, size) else source:resize(size, size)
+--- A square logo at `size` pixels, resampled from the source: by area when it shrinks, by
+--- interpolation when it grows.
+local function sized(source: magick.Image, size: number): magick.Image
+  return if size < source.width then source:scale(size, size) else source:resize(size, size)
+end
+
+--- The DreamWeave logo at `size` pixels square, to lay over the poster, clear outside its circle.
+function Art.emblem(source: magick.Image, size: number): magick.Image
+  -- The logo is round, but its halo reaches the square's corners faintly enough to show as a
+  -- square on black: its alpha is kept only within the circle the square holds, softly edged.
+  local circle = magick.new(size, size)
+
+  path.new():circle(size / 2, size / 2, size / 2):fill(circle, '#ffffff')
+
+  local soft = magick.blurMask(circle:alphaMask(), math.max(1, size * FeatherSoftness / 2))
+
+  return sized(source, size):copyAlpha(magick.maskToImage(soft), 'dstin')
+end
+
+--- The S3 logo at `size` pixels square, its alpha feathered from opaque inside to clear at the
+--- edge, to screen onto the poster.
+function Art.founderLogo(source: magick.Image, size: number): magick.Image
   local inset = math.floor(size * FeatherInset + 0.5)
   local covered = buffer.create(size * size)
 
@@ -51,7 +71,7 @@ function Art.logo(source: magick.Image, size: number): magick.Image
   local radius = math.max(1, size * FeatherSoftness)
   local feather = magick.blurMask(magick.blurMask(magick.mask(size, size, covered), radius), radius)
 
-  return sized:copyAlpha(magick.maskToImage(feather), 'copy')
+  return sized(source, size):copyAlpha(magick.maskToImage(feather), 'copy')
 end
 
 --- Where an elbow goes between a shoulder and a hand, two bones of `bone` each: an arm raised or

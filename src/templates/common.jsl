@@ -15,8 +15,9 @@ local truetype = require '@truetype'
 --- The fonts each role is set in.
 export type Fonts = { display: truetype.Font, support: truetype.Font, mono: truetype.Font }
 
---- What a template draws from besides the copy: the fonts, and the logo as read.
-export type Assets = { fonts: Fonts, logo: magick.Image }
+--- What a template draws from besides the copy: the fonts, and the two logos as read, the
+--- founder's S3 logo and DreamWeave's.
+export type Assets = { fonts: Fonts, s3: magick.Image, dreamweave: magick.Image }
 
 local Common = {}
 
@@ -115,13 +116,13 @@ function Common.cta(surface: canvas.Canvas, poster: campaign.Poster, assets: Ass
   canvas.text(surface, text.shifted(block, spare / 2), Palette.black, 'cta')
 end
 
---- The small logo that signs a poster whose subject isn't the founder.
+--- The small DreamWeave logo that signs a poster whose subject isn't a logo.
 function Common.signature(surface: canvas.Canvas, assets: Assets)
   local mark = theme.Footer.mark
   local size = canvas.pixels(surface, mark.right - mark.left)
 
-  canvas.screen(surface, art.logo(assets.logo, size), mark.left, mark.top)
-  canvas.mark(surface, 'logo', 'signature', mark)
+  canvas.over(surface, art.emblem(assets.dreamweave, size), mark.left, mark.top)
+  canvas.mark(surface, 'logo', 'DreamWeave signature', mark)
 end
 
 --- The rule, the destination, and the footer line.

@@ -13,21 +13,23 @@ local test = require '@jess/test'
 --- What the suite reads of a manifest.
 type Manifest = {
   campaign: string,
-  inputs: { logo: { file: string, sha256: string }, fonts: { unknown } },
+  inputs: { logos: { [string]: { file: string, sha256: string } }, fonts: { unknown } },
   posters: { { alt: string } },
 }
 
 local expect = test.expect
 local suite = test.new()
 
---- A request to build some posters into a folder, the stand-in logo written beside it.
+--- A request to build some posters into a folder, the stand-in logos written beside it.
 local function request(folder: string, posters: { string }?): commands.Request
-  local logo = fs.join(folder, 'stand-in.png')
+  local s3, dreamweave = fs.join(folder, 'stand-in.png'), fs.join(folder, 'stand-in-dreamweave.png')
 
-  magick.writePNG(logo, support.logo())
+  magick.writePNG(s3, support.s3Logo())
+  magick.writePNG(dreamweave, support.dreamweaveLogo())
 
   return {
-    logo = logo,
+    s3Logo = s3,
+    dreamweaveLogo = dreamweave,
     fontDirectory = support.FontDirectory,
     posters = posters,
     outDirectory = fs.join(folder, 'out'),
@@ -65,8 +67,10 @@ suite.it('writes each poster, its alt text, preview and layout view, and the man
   local manifest = (json.decode(contents(built.manifest)) :: unknown) :: Manifest
 
   expect(manifest.campaign).toBe 'OPERATION: BUILD SOMETHING'
-  expect(manifest.inputs.logo.file).toBe 'stand-in.png'
-  expect(manifest.inputs.logo.sha256).toBe(bytes.sha256(contents(fs.join(folder, 'stand-in.png'))))
+  expect(manifest.inputs.logos.s3.file).toBe 'stand-in.png'
+  expect(manifest.inputs.logos.s3.sha256).toBe(bytes.sha256(contents(fs.join(folder, 'stand-in.png'))))
+  expect(manifest.inputs.logos.dreamweave.file).toBe 'stand-in-dreamweave.png'
+  expect(manifest.inputs.logos.dreamweave.sha256).toBe(bytes.sha256(contents(fs.join(folder, 'stand-in-dreamweave.png'))))
   expect(#manifest.inputs.fonts).toBe(3)
   expect(#manifest.posters).toBe(3)
   expect(manifest.posters[1].alt).toContain 'I want you to build what comes next'
@@ -100,15 +104,22 @@ suite.it('builds an edition into a folder of its name', function()
   expect(built.posters[1].file).toBe 'P05-tired-of-the-same-old-walls.png'
 end)
 
-suite.it('refuses a missing logo, and writes nothing in its place', function()
+suite.it('refuses a missing logo, either of them, and writes nothing in its place', function()
   local folder = support.scratch 'missing'
   local asked = request(folder)
 
-  asked.logo = fs.join(folder, 'no-such-logo.png')
+  asked.s3Logo = fs.join(folder, 'no-such-logo.png')
 
   expect(function()
     commands.build(asked)
-  end).toThrow 'no logo at'
+  end).toThrow 'no S3 logo at'
+
+  asked = request(folder)
+  asked.dreamweaveLogo = fs.join(folder, 'no-such-logo.png')
+
+  expect(function()
+    commands.build(asked)
+  end).toThrow 'no DreamWeave logo at'
 
   expect(fs.isDir(fs.join(folder, 'out'))).toBe(false)
 end)
@@ -117,7 +128,7 @@ suite.it('refuses a logo that is not a PNG', function()
   local folder = support.scratch 'not-png'
   local asked = request(folder)
 
-  asked.logo = fs.join(support.root(), 'posters.toml')
+  asked.s3Logo = fs.join(support.root(), 'posters.toml')
 
   expect(function()
     commands.build(asked)

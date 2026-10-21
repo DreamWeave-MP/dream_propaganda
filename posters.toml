@@ -18,14 +18,14 @@ alt = "DreamWeave founder-invitation poster with the authentic purple S3 emblem 
 id = "P02"
 voice = "founder"
 template = "founder-emblem"
-subject = "s3-logo"
+subject = "dreamweave-logo"
 headline = "I BUILT THIS"
 subheadline = "SO YOU COULD BUILD MORE"
 support = "I started with a runtime. I'm inviting you to take it somewhere I never imagined."
 cta = "SHOW ME WHAT YOU BUILD."
 destination = "https://dreamweave-mp.github.io/jess/"
 footer = "S3KSHUN8 // DISSENT AS CRAFT"
-alt = "Personal S3kshun8 invitation beside the actual S3 emblem: I built this so you could build more."
+alt = "Personal S3kshun8 invitation beside the DreamWeave emblem: I built this so you could build more."
 
 [[poster]]
 id = "P03"

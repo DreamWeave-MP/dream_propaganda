@@ -111,16 +111,24 @@ suite.describe('posters', function()
     end
   end)
 
-  suite.it('shows the logo large only for the founder, and small everywhere else', function()
+  suite.it('shows the S3 logo on P01 alone, and the DreamWeave logo wherever another logo is', function()
     for _, rendered in drawAll() do
-      local logos = [for mark in rendered.marks if mark.kind == 'logo' => mark.box.right - mark.box.left]
+      local logos = [for mark in rendered.marks if mark.kind == 'logo' => mark]
 
       expect(#logos).toBe(1)
 
-      if rendered.poster.voice == 'founder' then
-        expect(logos[1] >= 600).toBe(true)
+      local logo = logos[1]
+      local side = logo.box.right - logo.box.left
+
+      if rendered.poster.id == 'P01' then
+        expect(logo.label).toBe 'S3 emblem'
+        expect(side >= 600).toBe(true)
+      elseif rendered.poster.voice == 'founder' then
+        expect(logo.label).toBe 'DreamWeave emblem'
+        expect(side >= 600).toBe(true)
       else
-        expect(logos[1] <= 90).toBe(true)
+        expect(logo.label).toBe 'DreamWeave signature'
+        expect(side <= 90).toBe(true)
       end
     end
   end)
@@ -133,8 +141,8 @@ suite.describe('posters', function()
       tops[mark.label] = mark.box.top
     end
 
-    expect(tops.headline < tops.emblem).toBe(true)
-    expect(tops.emblem < tops.subheadline).toBe(true)
+    expect(tops.headline < tops['S3 emblem']).toBe(true)
+    expect(tops['S3 emblem'] < tops.subheadline).toBe(true)
     expect(tops.subheadline < tops['cta panel']).toBe(true)
     expect(tops.support).toBeNil()
   end)
