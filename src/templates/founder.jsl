@@ -1,13 +1,16 @@
 --!strict
 --[[
-`founder-emblem`: the founder speaking. The supplied S3 logo is the hero, large and centered in
-two flat concentric rules; the headline sits over it and the invitation and call to action under
-it. No face, no figure: the mark is the signature.
+`founder-emblem`: the founder speaking, in the recruitment poster's own order. The headline is
+the hook at the top; the supplied S3 logo, large and centered in two flat concentric rules, is
+the emblem under it; the subheadline is the mission under the emblem, with the supporting line
+after it when the poster has one; the call to action strikes last. No face, no figure: the mark
+is the signature.
 ]]
 local art = require '../art'
 local campaign = require '../campaign'
 local canvas = require '../canvas'
 local common = require './common'
+local text = require '../text'
 local theme = require '../theme'
 
 local Founder = {}
@@ -22,11 +25,16 @@ function Founder.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: c
   local figure = zones.figure
   local voice = theme.Voices[poster.voice]
   local centerX, centerY = (figure.left + figure.right) / 2, (figure.top + figure.bottom) / 2
+  local headline = text.stack({
+    { text = poster.headline, style = common.headlineStyle(assets, 1, 'center'), what = 'headline' },
+  }, zones.header, 0, poster.id)
+
+  canvas.text(surface, headline[1], theme.Palette.pinkwhite, 'headline')
+
   local rules = canvas.path(surface)
     :ring(centerX, centerY, OuterRule, OuterRule - OuterWidth)
     :ring(centerX, centerY, InnerRule, InnerRule - InnerWidth)
 
-  common.header(surface, poster, assets, zones.header, 1, 'center')
   canvas.fill(surface, rules, voice.structure)
 
   local left, top = centerX - LogoSide / 2, centerY - LogoSide / 2
@@ -34,7 +42,22 @@ function Founder.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: c
   canvas.screen(surface, art.logo(assets.logo, canvas.pixels(surface, LogoSide)), left, top)
   canvas.mark(surface, 'logo', 'emblem', theme.box(left, top, left + LogoSide, top + LogoSide))
   canvas.mark(surface, 'figure', 'rules', theme.box(centerX - OuterRule, centerY - OuterRule, centerX + OuterRule, centerY + OuterRule))
-  common.support(surface, poster, assets, zones.support, 'center')
+
+  local lower: { text.Entry } = {
+    { text = poster.subheadline, style = common.subheadlineStyle(assets, 'center'), what = 'subheadline' },
+  }
+
+  local support = poster.support
+
+  if support then
+    table.insert(lower, { text = support, style = common.supportStyle(assets, 'center'), what = 'support' })
+  end
+
+  local blocks = text.stack(lower, zones.support, 34, poster.id)
+
+  canvas.text(surface, blocks[1], voice.accent, 'subheadline')
+  if blocks[2] then canvas.text(surface, blocks[2], theme.Palette.body, 'support') end
+
   common.cta(surface, poster, assets, zones.cta)
   common.footer(surface, poster, assets)
 

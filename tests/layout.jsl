@@ -125,6 +125,20 @@ suite.describe('posters', function()
     end
   end)
 
+  suite.it("reads a founder's poster top to bottom: headline, emblem, subheadline, call to action", function()
+    local rendered = propaganda.render(support.campaign().posters[1], support.assets())
+    local tops: { [string]: number } = {}
+
+    for _, mark in rendered.marks do
+      tops[mark.label] = mark.box.top
+    end
+
+    expect(tops.headline < tops.emblem).toBe(true)
+    expect(tops.emblem < tops.subheadline).toBe(true)
+    expect(tops.subheadline < tops['cta panel']).toBe(true)
+    expect(tops.support).toBeNil()
+  end)
+
   suite.it('refuses copy that would overrun its box instead of drawing it', function()
     local poster = table.clone(support.campaign().posters[1])
 

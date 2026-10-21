@@ -68,12 +68,15 @@ local Voices: { [string]: Colors } = {
 Theme.Voices = Voices
 
 --- Each template's zones, from the style guide's reading order: headline, then the figure, then
---- the supporting line and the call to action. The footer is the same on every poster.
+--- the supporting copy and the call to action. The founder's poster reads as the recruitment
+--- formula does: the headline over the emblem, and the subheadline under it with whatever
+--- supporting line there is, so the call to action strikes last. The footer is the same on every
+--- poster.
 local Layouts: { [string]: Zones } = {
   ['founder-emblem'] = {
-    header = box(72, 120, 1128, 370),
-    figure = box(72, 405, 1128, 1175),
-    support = box(120, 1215, 1080, 1440),
+    header = box(72, 110, 1128, 330),
+    figure = box(72, 350, 1128, 1110),
+    support = box(120, 1150, 1080, 1425),
     cta = box(72, 1485, 1128, 1615),
   },
   ['collective-builders'] = {

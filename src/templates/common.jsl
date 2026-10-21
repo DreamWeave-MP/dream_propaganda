@@ -22,6 +22,46 @@ local Common = {}
 
 local Palette = theme.Palette
 
+--- How a headline is set: the display face, as large as fits, in up to `lines` lines.
+function Common.headlineStyle(assets: Assets, lines: number, align: 'left' | 'center'): text.Style
+  return {
+    font = assets.fonts.display,
+    least = theme.Type.headline.least,
+    most = theme.Type.headline.most,
+    prefer = theme.Type.headline.prefer,
+    lines = lines,
+    leading = 0.98,
+    tracking = 0.01,
+    align = align,
+  }
+end
+
+--- How a subheadline is set: the display face, on one line.
+function Common.subheadlineStyle(assets: Assets, align: 'left' | 'center'): text.Style
+  return {
+    font = assets.fonts.display,
+    least = theme.Type.subheadline.least,
+    most = theme.Type.subheadline.most,
+    lines = 1,
+    leading = 1,
+    tracking = 0.015,
+    align = align,
+  }
+end
+
+--- How a supporting line is set: the supporting face, in up to two lines.
+function Common.supportStyle(assets: Assets, align: 'left' | 'center'): text.Style
+  return {
+    font = assets.fonts.support,
+    least = theme.Type.support.least,
+    most = theme.Type.support.most,
+    lines = 2,
+    leading = 1.32,
+    tracking = 0,
+    align = align,
+  }
+end
+
 --- The headline over the subheadline, centered or flush left in the template's header zone.
 function Common.header(
   surface: canvas.Canvas,
@@ -32,48 +72,23 @@ function Common.header(
   align: 'left' | 'center'
 )
   local voice = theme.Voices[poster.voice]
-  local headline: text.Style = {
-    font = assets.fonts.display,
-    least = theme.Type.headline.least,
-    most = theme.Type.headline.most,
-    prefer = theme.Type.headline.prefer,
-    lines = lines,
-    leading = 0.98,
-    tracking = 0.01,
-    align = align,
-  }
-
-  local subheadline: text.Style = {
-    font = assets.fonts.display,
-    least = theme.Type.subheadline.least,
-    most = theme.Type.subheadline.most,
-    lines = 1,
-    leading = 1,
-    tracking = 0.015,
-    align = align,
-  }
-
   local blocks = text.stack({
-    { text = poster.headline, style = headline, what = 'headline' },
-    { text = poster.subheadline, style = subheadline, what = 'subheadline' },
+    { text = poster.headline, style = Common.headlineStyle(assets, lines, align), what = 'headline' },
+    { text = poster.subheadline, style = Common.subheadlineStyle(assets, align), what = 'subheadline' },
   }, zone, 30, poster.id)
 
   canvas.text(surface, blocks[1], Palette.pinkwhite, 'headline')
   canvas.text(surface, blocks[2], voice.accent, 'subheadline')
 end
 
---- The supporting line, in up to two lines, centered or flush left in a zone.
+--- The supporting line, if the poster has one, in up to two lines, centered or flush left in a
+--- zone.
 function Common.support(surface: canvas.Canvas, poster: campaign.Poster, assets: Assets, zone: theme.Box, align: 'left' | 'center')
-  local style: text.Style = {
-    font = assets.fonts.support,
-    least = theme.Type.support.least,
-    most = theme.Type.support.most,
-    lines = 2,
-    leading = 1.32,
-    tracking = 0,
-    align = align,
-  }
-  local block = text.fit(poster.support, zone, style, `{poster.id} support`)
+  local support = poster.support
+
+  if not support then return end
+
+  local block = text.fit(support, zone, Common.supportStyle(assets, align), `{poster.id} support`)
   local spare = zone.bottom - block.ink.bottom
 
   canvas.text(surface, text.shifted(block, spare / 2), Palette.body, 'support')

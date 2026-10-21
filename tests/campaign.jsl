@@ -52,6 +52,17 @@ suite.describe('posters.toml', function()
     end
   end)
 
+  suite.it('lets a poster leave out its supporting line, as P01 does, but not leave it empty', function()
+    expect(support.campaign().posters[1].support).toBeNil()
+    expect(support.campaign().posters[2].support).toBe "I started with a runtime. I'm inviting you to take it somewhere I never imagined."
+
+    local text = changed('support = "We share the work so the next builder starts further ahead."', 'support = " "')
+
+    expect(function()
+      campaign.decode(text, 'posters.toml')
+    end).toThrow "P03: 'support' is empty"
+  end)
+
   suite.it('sends every poster somewhere real', function()
     for _, poster in support.campaign().posters do
       expect(poster.destination).toBe 'https://dreamweave-mp.github.io/jess/'

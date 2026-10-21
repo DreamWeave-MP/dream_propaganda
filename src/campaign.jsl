@@ -25,7 +25,7 @@ export type Poster = {
   subject: string,
   headline: string,
   subheadline: string,
-  support: string,
+  support: string?,
   cta: string,
   destination: string,
   footer: string,
@@ -61,7 +61,8 @@ local Templates: { [string]: { template: string, subjects: { string } } } = {
 --- How many posters of each voice the first wave holds.
 local Wave: { [string]: number } = { founder = 2, collective = 4, doctrine = 4 }
 
---- A poster's fields, every one required, in the order posters.toml writes them.
+--- A poster's fields, in the order posters.toml writes them. Every one is required but the
+--- supporting line: a poster whose copy says enough without one leaves it out.
 local Fields = {
   'id',
   'voice',
@@ -75,6 +76,8 @@ local Fields = {
   'footer',
   'alt',
 }
+
+local Optional = { 'support' }
 
 --- The fields an edition may replace: the copy, never what decides the drawing.
 local CopyFields = { 'headline', 'subheadline', 'support', 'cta', 'footer', 'alt' }
@@ -102,6 +105,8 @@ local function poster(entry: unknown, index: number, problems: { string }): Post
 
   for _, field in Fields do
     local value = fields[field]
+
+    if value == nil and table.find(Optional, field) then continue end
 
     if type(value) ~= 'string' then
       table.insert(problems, `{name}: '{field}' must be a string`)
@@ -286,7 +291,11 @@ function Campaign.decodeEditions(text: string, campaign: Campaign, source: strin
   for _, edition in editions do
     for _, read in Campaign.apply(campaign, edition) do
       for _, field in CopyFields do
-        local lowered = string.lower((read :: { [string]: string })[field])
+        local copy = (read :: { [string]: string? })[field]
+
+        if not copy then continue end
+
+        local lowered = string.lower(copy)
 
         for _, word in edition.forbid do
           if string.find(lowered, word, 1, true) then
