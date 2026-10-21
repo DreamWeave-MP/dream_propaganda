@@ -120,7 +120,7 @@ suite.describe('posters', function()
       if rendered.poster.voice == 'founder' then
         expect(logos[1] >= 600).toBe(true)
       else
-        expect(logos[1] <= 80).toBe(true)
+        expect(logos[1] <= 90).toBe(true)
       end
     end
   end)

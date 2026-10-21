@@ -150,7 +150,11 @@ function Common.footer(surface: canvas.Canvas, poster: campaign.Poster, assets: 
 
   canvas.rect(surface, theme.Safe, footer.rule, theme.Width - theme.Safe, footer.rule + 2, voice.structure)
   canvas.text(surface, text.fit(poster.destination, footer.destination, destination, `{poster.id} destination`), Palette.body, 'destination')
-  canvas.text(surface, text.fit(poster.footer, footer.line, line, `{poster.id} footer`), voice.accent, 'footer')
+
+  -- The footer line sits on the safe edge, the bottom of everything.
+  local footerLine = text.fit(poster.footer, footer.line, line, `{poster.id} footer`)
+
+  canvas.text(surface, text.shifted(footerLine, footer.line.bottom - footerLine.ink.bottom), voice.accent, 'footer')
 end
 
 --- Fills each part on the canvas, in order, and notes the box they cover together. Returns how

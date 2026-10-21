@@ -77,31 +77,32 @@ local Layouts: { [string]: Zones } = {
     header = box(72, 110, 1128, 330),
     figure = box(72, 350, 1128, 1110),
     support = box(120, 1150, 1080, 1425),
-    cta = box(72, 1485, 1128, 1615),
+    cta = box(72, 1465, 1128, 1590),
   },
   ['collective-builders'] = {
     header = box(72, 120, 1128, 430),
     figure = box(72, 470, 1128, 1160),
-    support = box(120, 1205, 1080, 1440),
-    cta = box(72, 1485, 1128, 1615),
+    support = box(120, 1200, 1080, 1425),
+    cta = box(72, 1465, 1128, 1590),
   },
   ['doctrine-diagram'] = {
     header = box(72, 120, 1128, 560),
     figure = box(72, 610, 1128, 1160),
-    support = box(120, 1205, 1080, 1440),
-    cta = box(72, 1485, 1128, 1615),
+    support = box(120, 1200, 1080, 1425),
+    cta = box(72, 1465, 1128, 1590),
   },
 }
 
 Theme.Zones = Layouts
 
 --- The footer: a rule, the destination and the poster's footer line under it on the left, and
---- the signature mark on the right.
+--- the signature mark on the right. The destination is set large enough to stay legible in a
+--- preview a third of the size.
 Theme.Footer = {
-  rule = 1648,
-  destination = box(72, 1664, 1020, 1700),
-  line = box(72, 1708, 1020, 1728),
-  mark = box(1054, 1654, 1128, 1728),
+  rule = 1606,
+  destination = box(72, 1622, 1020, 1672),
+  line = box(72, 1688, 1020, 1728),
+  mark = box(1046, 1628, 1128, 1710),
 }
 
 --- The type sizes each role may be set at, in pixels on the canonical canvas: the largest that
@@ -111,8 +112,8 @@ local Type: { [string]: Sizes } = {
   subheadline = { least = 68, most = 110 },
   support = { least = 36, most = 50 },
   cta = { least = 56, most = 84 },
-  destination = { least = 24, most = 32 },
-  line = { least = 16, most = 20 },
+  destination = { least = 28, most = 42 },
+  line = { least = 16, most = 22 },
 }
 
 Theme.Type = Type
