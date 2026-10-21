@@ -1,0 +1,145 @@
+--!strict
+-- Layout: copy fitted by measuring it, every poster of every edition drawn at the canonical size
+-- inside the safe area, collective scenes within their primitive budget, and refusals that name
+-- what didn't fit. Sets copy in the installed Noto Sans (see ./support).
+local campaign = require '@dream-propaganda/campaign'
+local propaganda = require '@dream-propaganda'
+local support = require './support'
+local test = require '@jess/test'
+local text = require '../src/text'
+
+local expect = test.expect
+local suite = test.new()
+
+local theme = propaganda.theme
+
+--- How copy is set in these cases: the display face between two sizes, in up to `lines` lines.
+local function style(least: number, most: number, lines: number): text.Style
+  return {
+    font = support.assets().fonts.display,
+    least = least,
+    most = most,
+    lines = lines,
+    leading = 1,
+    tracking = 0,
+    align = 'center',
+  }
+end
+
+
+suite.describe('fitting', function()
+  suite.it('takes the largest size the copy fits at, inside the box', function()
+    local box = theme.box(0, 0, 600, 200)
+    local block = text.fit('FITS', box, style(20, 120, 1), 'case')
+
+    expect(block.size).toBe(120)
+    expect(block.ink.left >= 0 and block.ink.right <= 600).toBe(true)
+    expect(block.ink.top >= 0 and block.ink.bottom <= 200).toBe(true)
+  end)
+
+  suite.it('breaks lines between words, balanced', function()
+    local block = text.fit('ONE TWO THREE FOUR', theme.box(0, 0, 300, 400), style(40, 60, 2), 'case')
+
+    expect([for line in block.lines => line.text]).toEqual { 'ONE TWO', 'THREE FOUR' }
+  end)
+
+  suite.it('refuses copy that does not fit at its least size, saying how it measured', function()
+    expect(function()
+      text.fit('THIS LINE IS FAR TOO LONG FOR ITS BOX', theme.box(0, 0, 300, 60), style(40, 60, 1), 'P99 headline')
+    end).toThrow 'P99 headline "THIS LINE IS FAR TOO LONG FOR ITS BOX" doesn\'t fit 300x60 px between 40 and 60 px'
+  end)
+end)
+
+--- Draws every poster of an edition, or the copy as it is.
+local function drawAll(edition: campaign.Edition?): { propaganda.Rendered }
+  local drawn: { propaganda.Rendered } = {}
+
+  for _, poster in campaign.apply(support.campaign(), edition) do
+    table.insert(drawn, propaganda.render(poster, support.assets()))
+  end
+
+  return drawn
+end
+
+suite.describe('posters', function()
+  suite.it('draws every poster at 1200x1800 with everything inside the safe area', function()
+    for _, rendered in drawAll() do
+      expect({ rendered.image.width, rendered.image.height }).toEqual { 1200, 1800 }
+
+      for _, mark in rendered.marks do
+        local box = mark.box
+
+        expect(box.left >= theme.Safe - 0.5 and box.top >= theme.Safe - 0.5).toBe(true)
+        expect(box.right <= theme.Width - theme.Safe + 0.5 and box.bottom <= theme.Height - theme.Safe + 0.5).toBe(true)
+      end
+    end
+  end)
+
+  suite.it('draws every edition', function()
+    for _, edition in support.editions() do
+      expect(#drawAll(edition)).toBe(10)
+    end
+  end)
+
+  suite.it('fits the longest headlines, P05 and P08, in two lines', function()
+    for _, rendered in drawAll() do
+      local id = rendered.poster.id
+
+      if id ~= 'P05' and id ~= 'P08' then continue end
+
+      local headline = [for mark in rendered.marks if mark.label == 'headline' => mark]
+
+      expect(#headline).toBe(1)
+      expect(headline[1].box.bottom - headline[1].box.top > 150).toBe(true)
+    end
+  end)
+
+  suite.it('keeps the URL and the call to action on every poster', function()
+    for _, rendered in drawAll() do
+      local labels = [for mark in rendered.marks => mark.label]
+
+      expect(labels).toContain 'destination'
+      expect(labels).toContain 'cta'
+    end
+  end)
+
+  suite.it('keeps the builders, what they build, and the mark within 25 primitives', function()
+    for _, rendered in drawAll() do
+      if rendered.poster.voice ~= 'collective' then continue end
+
+      expect(rendered.primitives <= 25).toBe(true)
+    end
+  end)
+
+  suite.it('shows the logo large only for the founder, and small everywhere else', function()
+    for _, rendered in drawAll() do
+      local logos = [for mark in rendered.marks if mark.kind == 'logo' => mark.box.right - mark.box.left]
+
+      expect(#logos).toBe(1)
+
+      if rendered.poster.voice == 'founder' then
+        expect(logos[1] >= 600).toBe(true)
+      else
+        expect(logos[1] <= 80).toBe(true)
+      end
+    end
+  end)
+
+  suite.it('refuses copy that would overrun its box instead of drawing it', function()
+    local poster = table.clone(support.campaign().posters[1])
+
+    poster.headline = 'I WANT YOU TO READ THIS VERY LONG HEADLINE THAT NO POSTER COULD EVER HOLD'
+
+    expect(function()
+      propaganda.render(poster, support.assets())
+    end).toThrow "P01 headline \"I WANT YOU TO READ THIS VERY LONG HEADLINE THAT NO POSTER COULD EVER HOLD\" doesn't fit"
+  end)
+
+  suite.it('draws at another size of the same shape', function()
+    local rendered = propaganda.render(support.campaign().posters[3], support.assets(), { scale = 0.5 })
+
+    expect({ rendered.image.width, rendered.image.height }).toEqual { 600, 900 }
+  end)
+end)
+
+return suite

@@ -1,0 +1,168 @@
+--!strict
+-- The copy and its rules: posters.toml as committed, each way a copy can break the campaign's
+-- rules and the message it gets, the editions and the words they mustn't keep, and file names.
+local campaign = require '@dream-propaganda/campaign'
+local fs = require '@dream/fs'
+local support = require './support'
+local test = require '@jess/test'
+
+local expect = test.expect
+local suite = test.new()
+
+--- The committed copy's text.
+local function copy(): string
+  return support.read(fs.join(support.root(), 'posters.toml'))
+end
+
+--- The committed copy with one piece of text replaced, once.
+local function changed(from: string, to: string): string
+  local text = copy()
+  local first, last = string.find(text, from, 1, true)
+
+  assert(first and last, `the copy has no {from}`)
+
+  return string.sub(text, 1, first - 1) .. to .. string.sub(text, last + 1)
+end
+
+suite.describe('posters.toml', function()
+  suite.it('holds the first wave: ten posters, two founder, four collective, four doctrine', function()
+    local read = support.campaign()
+    local voices: { [string]: number } = {}
+
+    for _, poster in read.posters do
+      voices[poster.voice] = (voices[poster.voice] or 0) + 1
+    end
+
+    expect(read.name).toBe 'OPERATION: BUILD SOMETHING'
+    expect(#read.posters).toBe(10)
+    expect(voices).toEqual { founder = 2, collective = 4, doctrine = 4 }
+    expect([for poster in read.posters => poster.id]).toEqual { 'P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08', 'P09', 'P10' }
+  end)
+
+  suite.it('draws the founder only with the S3 logo and the collective only with builders', function()
+    for _, poster in support.campaign().posters do
+      if poster.voice == 'founder' then
+        expect({ poster.template, poster.subject }).toEqual { 'founder-emblem', 's3-logo' }
+      elseif poster.voice == 'collective' then
+        expect(poster.template).toBe 'collective-builders'
+        expect(poster.subject == 's3-logo').toBe(false)
+      else
+        expect(poster.template).toBe 'doctrine-diagram'
+      end
+    end
+  end)
+
+  suite.it('sends every poster somewhere real', function()
+    for _, poster in support.campaign().posters do
+      expect(poster.destination).toBe 'https://dreamweave-mp.github.io/jess/'
+    end
+  end)
+
+  suite.it('is the copy the poster copy document gave, word for word', function()
+    local read = support.campaign()
+
+    expect(read.posters[1].headline).toBe 'I WANT YOU'
+    expect(read.posters[1].subheadline).toBe 'TO BUILD WHAT COMES NEXT'
+    expect(read.posters[1].cta).toBe 'MAKE SOME FUCKING ART.'
+    expect(read.posters[5].headline).toBe "TIRED OF THE WORLD'S BULLSHIT?"
+    expect(read.posters[10].support).toBe 'Run a .jsl file today. Build something bigger tomorrow.'
+  end)
+end)
+
+suite.describe('refusals', function()
+  local cases: { { name: string, from: string, to: string, says: string } } = {
+    { name = 'an unknown field', from = 'subject = "s3-logo"', to = 'subject = "s3-logo"\nmood = "grim"', says = "P01: unknown field 'mood'" },
+    {
+      name = 'a founder drawn as builders',
+      from = 'template = "founder-emblem"',
+      to = 'template = "collective-builders"',
+      says = "P01: a founder poster is drawn with 'founder-emblem', not 'collective-builders'",
+    },
+    {
+      name = 'a collective drawn with the logo',
+      from = 'subject = "three-builders"',
+      to = 'subject = "s3-logo"',
+      says = "P03: 'collective-builders' draws no subject 's3-logo'",
+    },
+    { name = 'an unknown voice', from = 'voice = "doctrine"', to = 'voice = "sermon"', says = "unknown voice 'sermon'" },
+    { name = 'a destination that is no URL', from = 'destination = "https://dreamweave-mp.github.io/jess/"', to = 'destination = "the website"', says = "P01: destination 'the website' is not a URL" },
+    { name = 'an empty field', from = 'cta = "LEAVE A TRAIL."', to = 'cta = "  "', says = "P08: 'cta' is empty" },
+    { name = 'a missing field', from = 'alt = "A minimal stack diagram above the slogan: One runtime, more things to build."', to = '', says = "P09: 'alt' must be a string" },
+    { name = 'an id used twice', from = 'id = "P02"', to = 'id = "P01"', says = 'P01: id used twice' },
+    { name = 'an unknown key', from = 'version = 1', to = 'version = 1\nmotto = "no"', says = "unknown key 'motto'" },
+  }
+
+  for _, case in cases do
+    suite.it(`refuses {case.name}`, function()
+      local text = changed(case.from, case.to)
+
+      expect(function()
+        campaign.decode(text, 'posters.toml')
+      end).toThrow(case.says)
+    end)
+  end
+
+  suite.it('refuses a wave of the wrong shape', function()
+    local text = changed('voice = "doctrine"\ntemplate = "doctrine-diagram"\nsubject = "single-script"', 'voice = "collective"\ntemplate = "collective-builders"\nsubject = "shared-beam"')
+
+    expect(function()
+      campaign.decode(text, 'posters.toml')
+    end).toThrow 'the wave has 4 collective posters, not 5'
+  end)
+
+  suite.it('reports every problem at once', function()
+    local text = changed('id = "P02"', 'id = "P01"')
+
+    text = string.gsub(text, 'destination = "https://dreamweave%-mp.github.io/jess/"\nfooter = "DW%-02', 'destination = "nowhere"\nfooter = "DW-02')
+
+    expect(function()
+      campaign.decode(text, 'posters.toml')
+    end).toThrow "P06: destination 'nowhere' is not a URL\n  P01: id used twice"
+  end)
+end)
+
+suite.describe('editions', function()
+  suite.it('reads the safe and newcomer editions', function()
+    local editions = support.editions()
+
+    expect(editions.safe.posters.P01).toEqual { cta = 'BUILD WHAT COMES NEXT.' }
+    expect(editions.safe.forbid).toEqual { 'fuck', 'shit' }
+    expect(editions.newcomer.posters.P03.headline).toBe 'WE NEED YOUR IDEAS'
+  end)
+
+  suite.it('replaces only the fields an edition names, and leaves the copy alone', function()
+    local read = support.campaign()
+    local safe = campaign.apply(read, support.editions().safe)
+
+    expect(safe[5].headline).toBe 'TIRED OF THE SAME OLD WALLS?'
+    expect(safe[5].subheadline).toBe 'GOOD. BUILD SOMETHING.'
+    expect(safe[10].footer).toBe 'JESS // BUILD WHAT COMES NEXT.'
+    expect(read.posters[5].headline).toBe "TIRED OF THE WORLD'S BULLSHIT?"
+  end)
+
+  suite.it('refuses an edition that still says a word it forbids', function()
+    local text = '[clean]\ndescription = "x"\nforbid = ["bullshit"]\n'
+
+    expect(function()
+      campaign.decodeEditions(text, support.campaign(), 'editions.toml')
+    end).toThrow "clean.P05: 'headline' still says 'bullshit'"
+  end)
+
+  suite.it('refuses an edition that changes what a poster draws', function()
+    local text = '[odd]\ndescription = "x"\nforbid = []\n[odd.P01]\nsubject = "three-builders"\n'
+
+    expect(function()
+      campaign.decodeEditions(text, support.campaign(), 'editions.toml')
+    end).toThrow "odd.P01: 'subject' is not copy an edition may replace"
+  end)
+end)
+
+suite.describe('slug', function()
+  suite.it('names a file after a line of copy', function()
+    expect(campaign.slug 'I WANT YOU').toBe 'i-want-you'
+    expect(campaign.slug "TIRED OF THE WORLD'S BULLSHIT?").toBe 'tired-of-the-worlds-bullshit'
+    expect(campaign.slug '  START WITH ONE SCRIPT!  ').toBe 'start-with-one-script'
+  end)
+end)
+
+return suite

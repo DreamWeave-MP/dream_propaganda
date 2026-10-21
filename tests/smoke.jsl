@@ -1,0 +1,137 @@
+--!strict
+-- A whole build through @dream-propaganda/commands, into target/tests: the files it writes, the
+-- manifest, a second build matching the first, the inputs left as they were, and the refusals
+-- that leave nothing behind. Draws with the stand-in logo (see ./support).
+local bytes = require '@dream/bytes'
+local commands = require '@dream-propaganda/commands'
+local fs = require '@dream/fs'
+local json = require '@jess/json'
+local magick = require '@magick'
+local support = require './support'
+local test = require '@jess/test'
+
+--- What the suite reads of a manifest.
+type Manifest = {
+  campaign: string,
+  inputs: { logo: { file: string, sha256: string }, fonts: { unknown } },
+  posters: { { alt: string } },
+}
+
+local expect = test.expect
+local suite = test.new()
+
+--- A request to build some posters into a folder, the stand-in logo written beside it.
+local function request(folder: string, posters: { string }?): commands.Request
+  local logo = fs.join(folder, 'stand-in.png')
+
+  magick.writePNG(logo, support.logo())
+
+  return {
+    logo = logo,
+    fontDirectory = support.FontDirectory,
+    posters = posters,
+    outDirectory = fs.join(folder, 'out'),
+    debug = true,
+    previews = true,
+  }
+end
+
+--- A file's bytes as a string.
+local function contents(path: string): string
+  return support.read(path)
+end
+
+suite.it('writes each poster, its alt text, preview and layout view, and the manifest', function()
+  local folder = support.scratch 'build'
+  local built = commands.build(request(folder, { 'P01', 'P03', 'P07' }))
+  local out = fs.join(folder, 'out')
+
+  expect([for poster in built.posters => poster.file]).toEqual {
+    'P01-i-want-you.png',
+    'P03-we-need-builders.png',
+    'P07-dissent-as-craft.png',
+  }
+
+  for _, poster in built.posters do
+    local image = magick.readPNG(fs.join(out, poster.file))
+
+    expect({ image.width, image.height }).toEqual { 1200, 1800 }
+    expect(bytes.sha256(contents(fs.join(out, poster.file)))).toBe(poster.sha256)
+    expect(fs.isFile(fs.join(out, poster.alt))).toBe(true)
+    expect(magick.readPNG(fs.join(out, poster.preview or '')).width).toBe(360)
+    expect(fs.isFile(fs.join(out, poster.debug or ''))).toBe(true)
+  end
+
+  local manifest = (json.decode(contents(built.manifest)) :: unknown) :: Manifest
+
+  expect(manifest.campaign).toBe 'OPERATION: BUILD SOMETHING'
+  expect(manifest.inputs.logo.file).toBe 'stand-in.png'
+  expect(manifest.inputs.logo.sha256).toBe(bytes.sha256(contents(fs.join(folder, 'stand-in.png'))))
+  expect(#manifest.inputs.fonts).toBe(3)
+  expect(#manifest.posters).toBe(3)
+  expect(manifest.posters[1].alt).toContain 'I want you to build what comes next'
+  expect(contents(fs.join(out, 'P01-i-want-you.txt'))).toBe(manifest.posters[1].alt .. '\n')
+  -- Nothing in it says where the logo was read from.
+  expect((string.find(contents(built.manifest), folder, 1, true))).toBeNil()
+end)
+
+suite.it('builds the same bytes twice, and leaves its inputs as they were', function()
+  local folder = support.scratch 'again'
+  local copy = contents(fs.join(support.root(), 'posters.toml'))
+  local first = commands.build(request(folder, { 'P05' }))
+  local firstBytes = contents(fs.join(first.directory, first.posters[1].file))
+  local logoBytes = contents(fs.join(folder, 'stand-in.png'))
+  local second = commands.build(request(folder, { 'P05' }))
+
+  expect(contents(fs.join(second.directory, second.posters[1].file)) == firstBytes).toBe(true)
+  expect(contents(fs.join(folder, 'stand-in.png')) == logoBytes).toBe(true)
+  expect(contents(fs.join(support.root(), 'posters.toml')) == copy).toBe(true)
+end)
+
+suite.it('builds an edition into a folder of its name', function()
+  local folder = support.scratch 'edition'
+  local asked = request(folder, { 'P05' })
+
+  asked.edition = 'safe'
+
+  local built = commands.build(asked)
+
+  expect(built.directory).toBe(fs.join(folder, 'out', 'safe'))
+  expect(built.posters[1].file).toBe 'P05-tired-of-the-same-old-walls.png'
+end)
+
+suite.it('refuses a missing logo, and writes nothing in its place', function()
+  local folder = support.scratch 'missing'
+  local asked = request(folder)
+
+  asked.logo = fs.join(folder, 'no-such-logo.png')
+
+  expect(function()
+    commands.build(asked)
+  end).toThrow 'no logo at'
+
+  expect(fs.isDir(fs.join(folder, 'out'))).toBe(false)
+end)
+
+suite.it('refuses a logo that is not a PNG', function()
+  local folder = support.scratch 'not-png'
+  local asked = request(folder)
+
+  asked.logo = fs.join(support.root(), 'posters.toml')
+
+  expect(function()
+    commands.build(asked)
+  end).toThrow 'is not a PNG'
+end)
+
+suite.it('refuses a size of another shape', function()
+  local asked = request(support.scratch 'shape')
+
+  asked.width, asked.height = 1080, 1080
+
+  expect(function()
+    commands.build(asked)
+  end).toThrow "1080x1080 isn't 1200x1800 scaled"
+end)
+
+return suite
