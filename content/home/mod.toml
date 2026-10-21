@@ -14,3 +14,8 @@ url = "https://github.com/DreamWeave-MP"
 [package]
 format = "jpk"
 jess = "org.dreamweave.dream-propaganda"
+
+[[releases]]
+version = "0.1.0"
+date = 2026-10-21
+summary = "First release: OPERATION: BUILD SOMETHING's ten posters, drawn by Jess from their copy, two logos and installed fonts."
