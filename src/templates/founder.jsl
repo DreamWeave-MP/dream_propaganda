@@ -1,8 +1,8 @@
 --!strict
 --[[
 `founder-emblem`: the founder speaking, in the recruitment poster's own order. The headline is
-the hook at the top; a supplied logo, large and centered in two flat concentric rules, is the
-emblem under it (the founder's own S3 on `s3-logo`, DreamWeave's on `dreamweave-logo`); the subheadline is the mission under the emblem, with the supporting line
+the hook at the top; the founder's own S3 logo, large and centered in two flat concentric rules,
+is the emblem under it; the subheadline is the mission under the emblem, with the supporting line
 after it when the poster has one; the call to action strikes last. No face, no figure: the mark
 is the signature.
 ]]
@@ -41,13 +41,8 @@ function Founder.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: c
 
   local side = canvas.pixels(surface, LogoSide)
 
-  if poster.subject == 's3-logo' then
-    canvas.screen(surface, art.founderLogo(assets.s3, side), left, top)
-    canvas.mark(surface, 'logo', 'S3 emblem', theme.box(left, top, left + LogoSide, top + LogoSide))
-  else
-    canvas.over(surface, art.emblem(assets.dreamweave, side), left, top)
-    canvas.mark(surface, 'logo', 'DreamWeave emblem', theme.box(left, top, left + LogoSide, top + LogoSide))
-  end
+  canvas.screen(surface, art.founderLogo(assets.s3, side), left, top)
+  canvas.mark(surface, 'logo', 'S3 emblem', theme.box(left, top, left + LogoSide, top + LogoSide))
   canvas.mark(surface, 'figure', 'rules', theme.box(centerX - OuterRule, centerY - OuterRule, centerX + OuterRule, centerY + OuterRule))
 
   local lower: { text.Entry } = {

@@ -196,6 +196,40 @@ Scenes['interlocking-blocks'] = function(): { art.Part }
   return parts
 end
 
+-- One builder handing a block on to a newcomer, the stack it came from behind them: the work
+-- passed forward, one hand to another.
+Scenes['handing-on'] = function(): { art.Part }
+  local parts: { art.Part } = {
+    ground(110, 1090),
+    art.block(120, 980, 300, Ground, Work),
+    art.block(145, 860, 275, 980, Work),
+  }
+
+  local giving = art.builder {
+    center = 420,
+    ground = Ground,
+    height = 560,
+    leftHand = { 350, 970 },
+    rightHand = { 572, 835 },
+    color = Figure,
+  }
+
+  local receiving = art.builder {
+    center = 860,
+    ground = Ground,
+    height = 470,
+    leftHand = { 686, 835 },
+    rightHand = { 930, 990 },
+    color = Figure,
+  }
+
+  table.move(giving, 1, #giving, #parts + 1, parts)
+  table.move(receiving, 1, #receiving, #parts + 1, parts)
+  table.insert(parts, art.block(564, 780, 694, 890, Palette.violet))
+
+  return parts
+end
+
 --- How many primitives a scene draws, the ground line included.
 function Collective.primitives(subject: string): number
   local count = 0

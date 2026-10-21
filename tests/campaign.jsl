@@ -25,7 +25,7 @@ local function changed(from: string, to: string): string
 end
 
 suite.describe('posters.toml', function()
-  suite.it('holds the first wave: ten posters, two founder, four collective, four doctrine', function()
+  suite.it('holds the first wave: ten posters, one founder, five collective, four doctrine', function()
     local read = support.campaign()
     local voices: { [string]: number } = {}
 
@@ -35,16 +35,14 @@ suite.describe('posters.toml', function()
 
     expect(read.name).toBe 'OPERATION: BUILD SOMETHING'
     expect(#read.posters).toBe(10)
-    expect(voices).toEqual { founder = 2, collective = 4, doctrine = 4 }
+    expect(voices).toEqual { founder = 1, collective = 5, doctrine = 4 }
     expect([for poster in read.posters => poster.id]).toEqual { 'P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08', 'P09', 'P10' }
   end)
 
-  suite.it('draws the founder only with a logo, the S3 logo on P01 alone, and the collective only with builders', function()
+  suite.it('gives the founder P01 alone, with the S3 logo, and draws the collective only with builders', function()
     for _, poster in support.campaign().posters do
-      if poster.id == 'P01' then
-        expect({ poster.template, poster.subject }).toEqual { 'founder-emblem', 's3-logo' }
-      elseif poster.voice == 'founder' then
-        expect({ poster.template, poster.subject }).toEqual { 'founder-emblem', 'dreamweave-logo' }
+      if poster.voice == 'founder' then
+        expect({ poster.id, poster.template, poster.subject }).toEqual { 'P01', 'founder-emblem', 's3-logo' }
       elseif poster.voice == 'collective' then
         expect(poster.template).toBe 'collective-builders'
         expect(poster.subject == 's3-logo').toBe(false)
@@ -56,7 +54,7 @@ suite.describe('posters.toml', function()
 
   suite.it('lets a poster leave out its supporting line, as P01 does, but not leave it empty', function()
     expect(support.campaign().posters[1].support).toBeNil()
-    expect(support.campaign().posters[2].support).toBe "I started with a runtime. I'm inviting you to take it somewhere I never imagined."
+    expect(support.campaign().posters[2].support).toBe 'We started with a runtime. Take it somewhere we never imagined.'
 
     local text = changed('support = "We share the work so the next builder starts further ahead."', 'support = " "')
 
@@ -120,7 +118,7 @@ suite.describe('refusals', function()
 
     expect(function()
       campaign.decode(text, 'posters.toml')
-    end).toThrow 'the wave has 4 collective posters, not 5'
+    end).toThrow 'the wave has 5 collective posters, not 6'
   end)
 
   suite.it('reports every problem at once', function()

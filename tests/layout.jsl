@@ -123,9 +123,6 @@ suite.describe('posters', function()
       if rendered.poster.id == 'P01' then
         expect(logo.label).toBe 'S3 emblem'
         expect(side >= 600).toBe(true)
-      elseif rendered.poster.voice == 'founder' then
-        expect(logo.label).toBe 'DreamWeave emblem'
-        expect(side >= 600).toBe(true)
       else
         expect(logo.label).toBe 'DreamWeave signature'
         expect(side <= 90).toBe(true)
