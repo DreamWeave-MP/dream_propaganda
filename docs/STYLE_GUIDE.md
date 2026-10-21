@@ -26,11 +26,11 @@ The words determine the imagery. Do not reverse this rule just because a strikin
 
 | Speaker / words | Main visual | Message | Constraint |
 |---|---|---|---|
-| **Founder** — `I`, `my`, `I built`, `I want you` | A supplied logo as the dominant icon: the **actual S3 logo** on `I WANT YOU`, the DreamWeave logo on the other; optionally a *procedural, anonymous* suit/pointing-hand silhouette | A personal invitation from S3kshun8 | Exactly **two** founder-address posters in wave one. Do not invent a realistic likeness or a portrait. |
+| **Founder** — `I`, `my`, `I built`, `I want you` | The **actual S3 logo** as the dominant icon; optionally a *procedural, anonymous* suit/pointing-hand silhouette | A personal invitation from S3kshun8 | Exactly **one** founder-address poster in wave one, `I WANT YOU`: first-person copy stands only beside the founder's own mark. Do not invent a realistic likeness or a portrait. |
 | **Collective** — `we`, `our`, `us`, `together` | Simple anonymous **builder silhouettes**, one to three people using primitive geometry | Shared work, mutual aid, durable institutions | Never substitute the founder portrait. Avoid portraying the collective as uniformed followers. |
 | **Doctrine / capability** — imperative or neutral language | Typography, lines, modules, arrows, terminal cursors, scaffolds, simple circuitry | A principle or demonstrable utility | Prefer no human figures. A small DreamWeave mark may sign the piece, not dominate it. |
 
-**`I WANT YOU` MUST center the supplied S3 emblem.** It is the founder's seal/signature, not a license to generate a face, and it appears on that poster alone. The other direct-address poster centers the DreamWeave logo. On collectivist and doctrine posters, the DreamWeave mark is a small signature, secondary to the builders or the diagram.
+**`I WANT YOU` MUST center the supplied S3 emblem.** It is the founder's seal/signature, not a license to generate a face, and it appears on that poster alone. On collectivist and doctrine posters, the DreamWeave mark is a small signature, secondary to the builders or the diagram.
 
 ## 3. Visual ancestry, without imitation
 
@@ -66,7 +66,7 @@ Per poster: generally background + pinkwhite/body + **one** dominant purple + at
 
 Combinations to start with:
 
-- Founder: black / pinkwhite / lavender; a large centered logo.
+- Founder: black / pinkwhite / lavender; the large centered S3 logo.
 - Collective: black / pinkwhite / violet or orchid; geometric silhouettes in lavender.
 - Doctrine: black / pinkwhite / orchid; grid/rules/circuits in subdued violet.
 
@@ -101,11 +101,11 @@ Forbidden: any generative-image service, prompt-to-image feature, image-model ou
 The recruitment formula's order: the hook at the top, the emblem in the center, the mission under it, and the call to action as the final strike.
 
 - Headline alone: y≈110–330.
-- The logo centered, within y≈350–1110: the S3 on `I WANT YOU`, the DreamWeave logo on the other founder poster.
+- The S3 logo centered, within y≈350–1110.
 - Subheadline as the mission line, with any supporting invitation after it: y≈1150–1425. A founder poster may carry no supporting line at all; `I WANT YOU` doesn't.
 - CTA panel y≈1465–1590.
 - URL and provenance line y≈1622–1728.
-- Optional simple pointer formed from vector strokes/polygons; not a detailed hand or face. **The logo is the hero**, the S3 above all on `I WANT YOU`.
+- Optional simple pointer formed from vector strokes/polygons; not a detailed hand or face. **The S3 is the hero.**
 
 ### B. `collective-builders` — shared work
 

@@ -7,10 +7,9 @@ its command is `dream-propaganda`.
 Ten posters from one file of copy, two logos, and installed fonts. Every shape is a primitive
 (circles, polygons, strokes, rectangles), every letter is set from the font's own outlines, and
 the logos are the supplied files, never redrawn: the founder's S3 logo on P01 alone, and
-DreamWeave's on P02 and as the signature of the rest. No image
-model and no image service: the pixels come from [Magick](https://dreamweave-mp.github.io/magick/),
-Jess's raster toolkit based on ImageMagick, and [truetype](https://dreamweave-mp.github.io/truetype/),
-both JSL running in Jess. The same inputs make the same bytes.
+DreamWeave's as the signature of the rest. No image model and no image service: the pixels come
+from [Magick](https://dreamweave-mp.github.io/magick/), Jess's raster toolkit based on ImageMagick,
+and [truetype](https://dreamweave-mp.github.io/truetype/), both JSL running in Jess. The same inputs make the same bytes.
 
 ## What it needs
 
@@ -79,9 +78,9 @@ others.
 `posters.toml` is the copy, word for word as approved. The build never rewrites it: copy that
 doesn't fit its box at its smallest size stops the build with what it measured, and so does
 anything that would land outside the 72 pixel safe area. Each voice has its template:
-`founder-emblem` (a logo as the hero, the headline over it and the mission under it), `collective-builders` (anonymous builders at shared
+`founder-emblem` (the S3 logo as the hero, the headline over it and the mission under it), `collective-builders` (anonymous builders at shared
 work, at most 25 primitives), and `doctrine-diagram` (type over a diagram). The copy is checked
-before anything is drawn: ten posters, two founder, four collective, four doctrine, every field
+before anything is drawn: ten posters, one founder, five collective, four doctrine, every field
 there, every voice drawn by its own template, every destination a URL.
 
 `editions.toml` holds editions, copy replaced field by field for other venues: `safe` swaps the
