@@ -63,6 +63,20 @@ suite.describe('posters.toml', function()
     end).toThrow "P03: 'support' is empty"
   end)
 
+  suite.it("puts the founder's name only on the founder's poster, and DreamWeave's on the rest", function()
+    for _, poster in support.campaign().posters do
+      local signed = string.match(poster.footer, '^(%S+) //')
+
+      if poster.voice == 'founder' then
+        expect(signed).toBe 'S3KSHUN8'
+      else
+        expect((string.find(poster.footer, 'S3KSHUN8', 1, true))).toBeNil()
+      end
+    end
+
+    expect(support.campaign().posters[2].footer).toBe 'DREAMWEAVE // SHARED FOUNDATIONS. INDEPENDENT CREATION.'
+  end)
+
   suite.it('sends every poster somewhere real', function()
     for _, poster in support.campaign().posters do
       expect(poster.destination).toBe 'https://dreamweave-mp.github.io/jess/'
