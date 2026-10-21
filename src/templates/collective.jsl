@@ -1,0 +1,228 @@
+--!strict
+--[[
+`collective-builders`: we, together. Two or three anonymous builders work on one shared thing,
+which is what makes them a collective rather than a crowd: they face the work, not the viewer,
+and nobody salutes anyone. Builders are lavender, what they build orchid, the ground violet; what
+they hold is pinkwhite so a tool reads apart from the arm holding it. The founder appears only as
+the small signature in the footer.
+]]
+local art = require '../art'
+local campaign = require '../campaign'
+local canvas = require '../canvas'
+local common = require './common'
+local path = require '@magick/path'
+local theme = require '../theme'
+
+local Collective = {}
+
+local Palette = theme.Palette
+
+--- Where every builder stands.
+local Ground = 1120
+
+local Figure, Work, Soil, Tool = Palette.lavender, Palette.orchid, Palette.violet, Palette.pinkwhite
+
+--- The ground line under a scene, between two x positions.
+local function ground(left: number, right: number): art.Part
+  return art.part(path.new():rect(left, Ground, right, Ground + 6), Soil)
+end
+
+--- Each scene's parts, back to front.
+local Scenes: { [string]: () -> { art.Part } } = {}
+
+-- Three builders raising a stack together: one sets the top block, one steadies the middle, one
+-- checks the plan on a tablet.
+Scenes['three-builders'] = function(): { art.Part }
+  local parts: { art.Part } = {
+    ground(110, 1090),
+    art.block(520, 990, 800, Ground, Work),
+    art.block(555, 870, 765, 990, Work),
+    art.block(585, 715, 735, 820, Work),
+  }
+
+  local placing = art.builder {
+    center = 440,
+    ground = Ground,
+    height = 580,
+    leftHand = { 582, 790 },
+    rightHand = { 582, 728 },
+    color = Figure,
+  }
+
+  local steadying = art.builder {
+    center = 910,
+    ground = Ground,
+    height = 520,
+    leftHand = { 772, 925 },
+    rightHand = { 1000, 1010 },
+    color = Figure,
+  }
+
+  local checking = art.builder {
+    center = 200,
+    ground = Ground,
+    height = 480,
+    leftHand = { 150, 1000 },
+    rightHand = { 285, 905 },
+    color = Figure,
+  }
+
+  table.move(placing, 1, #placing, #parts + 1, parts)
+  table.move(steadying, 1, #steadying, #parts + 1, parts)
+  table.move(checking, 1, #checking, #parts + 1, parts)
+  table.insert(parts, art.tablet(292, 920, 70, 96, Tool))
+
+  return parts
+end
+
+-- Two builders holding one beam overhead, the work already done resting on it.
+Scenes['shared-beam'] = function(): { art.Part }
+  local parts: { art.Part } = {
+    ground(110, 1090),
+    art.block(385, 452, 515, 520, Work),
+    art.block(535, 452, 665, 520, Work),
+    art.block(685, 452, 815, 520, Work),
+    art.block(150, 520, 1050, 580, Palette.violet),
+  }
+
+  local first = art.builder {
+    center = 340,
+    ground = Ground,
+    height = 520,
+    leftHand = { 282, 584 },
+    rightHand = { 400, 584 },
+    color = Figure,
+  }
+
+  local second = art.builder {
+    center = 860,
+    ground = Ground,
+    height = 500,
+    leftHand = { 790, 584 },
+    rightHand = { 930, 584 },
+    color = Figure,
+  }
+
+  table.move(first, 1, #first, #parts + 1, parts)
+  table.move(second, 1, #second, #parts + 1, parts)
+
+  return parts
+end
+
+-- Two builders with tools at one block: one turns a wrench on it, one reads the plan.
+Scenes['builders-with-tools'] = function(): { art.Part }
+  local parts: { art.Part } = {
+    ground(110, 1090),
+    art.block(480, 880, 740, Ground, Work),
+  }
+
+  local fixing = art.builder {
+    center = 300,
+    ground = Ground,
+    height = 560,
+    leftHand = { 380, 930 },
+    rightHand = { 448, 880 },
+    color = Figure,
+  }
+
+  local reading = art.builder {
+    center = 910,
+    ground = Ground,
+    height = 510,
+    leftHand = { 790, 930 },
+    rightHand = { 990, 1000 },
+    color = Figure,
+  }
+
+  table.move(fixing, 1, #fixing, #parts + 1, parts)
+  table.move(reading, 1, #reading, #parts + 1, parts)
+  table.insert(parts, art.wrench(448, 880, 110, 1, 18, Tool))
+  table.insert(parts, art.tablet(780, 945, 72, 100, Tool))
+
+  return parts
+end
+
+-- Two different builders pushing two blocks together, the tab of one into the notch of the other.
+Scenes['interlocking-blocks'] = function(): { art.Part }
+  local tabbed = path.new():polygon {
+    { 300, 880 },
+    { 586, 880 },
+    { 586, 972 },
+    { 632, 972 },
+    { 632, 1040 },
+    { 586, 1040 },
+    { 586, Ground },
+    { 300, Ground },
+  }
+
+  local notched = path.new():polygon {
+    { 614, 880 },
+    { 900, 880 },
+    { 900, Ground },
+    { 614, Ground },
+    { 614, 1046 },
+    { 660, 1046 },
+    { 660, 966 },
+    { 614, 966 },
+  }
+
+  local parts: { art.Part } = {
+    ground(110, 1090),
+    art.part(tabbed, Work),
+    art.part(notched, Palette.violet),
+  }
+
+  local left = art.builder {
+    center = 190,
+    ground = Ground,
+    height = 540,
+    leftHand = { 296, 990 },
+    rightHand = { 300, 935 },
+    color = Figure,
+  }
+
+  local right = art.builder {
+    center = 1010,
+    ground = Ground,
+    height = 470,
+    leftHand = { 904, 1000 },
+    rightHand = { 904, 1050 },
+    color = Figure,
+  }
+
+  table.move(left, 1, #left, #parts + 1, parts)
+  table.move(right, 1, #right, #parts + 1, parts)
+
+  return parts
+end
+
+--- How many primitives a scene draws, the ground line included.
+function Collective.primitives(subject: string): number
+  local count = 0
+
+  for _, part in Scenes[subject]() do
+    count += part.primitives
+  end
+
+  return count
+end
+
+function Collective.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: common.Assets): number
+  local zones = theme.Zones['collective-builders']
+  local scene = Scenes[poster.subject]
+
+  if not scene then error(`{poster.id}: collective-builders draws no subject '{poster.subject}'`, 0) end
+
+  common.header(surface, poster, assets, zones.header, 2, 'center')
+
+  local count = common.parts(surface, scene(), poster.subject)
+
+  common.support(surface, poster, assets, zones.support, 'center')
+  common.cta(surface, poster, assets, zones.cta)
+  common.signature(surface, assets)
+  common.footer(surface, poster, assets)
+
+  return count + 1
+end
+
+return Collective

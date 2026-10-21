@@ -1,0 +1,289 @@
+--!strict
+--[[
+@dream-propaganda/text: copy set into boxes by measuring it.
+
+  fit(text, box, style, what) -> Block           the largest size it fits at, or an error
+  try(text, box, style) -> (Block?, string)       the same, or why not
+  stack(entries, box, gap, what) -> { Block }     blocks one under another, centered in a box
+
+A size fits when every line's ink is inside the box's width and the lines' ink, one under the
+other, inside its height. Lines break only between words, into as few lines as fit, balanced so
+the longest is as short as it can be. Copy that doesn't fit at its least size is an error naming
+the box and what the copy measured: the copy is never shortened, and a box is never overrun.
+]]
+local theme = require './theme'
+local truetype = require '@truetype'
+
+type Box = theme.Box
+
+--- How a piece of copy is set: its font, the sizes it may take, how many lines it may break
+--- into, the distance between baselines as a share of the size, the space added between letters
+--- as a share of the size, and how its lines sit in the box. With `prefer`, fewer lines are
+--- taken over a larger size as long as they can be set at `prefer` or larger.
+export type Style = {
+  font: truetype.Font,
+  least: number,
+  most: number,
+  prefer: number?,
+  lines: number,
+  leading: number,
+  tracking: number,
+  align: 'left' | 'center' | 'right',
+}
+
+--- One line of a block: its text, where its origin is across and the baseline it sits on, and
+--- its ink.
+export type Line = { text: string, origin: number, baseline: number, ink: Box }
+
+--- Copy set at a size: its lines and the box their ink fills.
+export type Block = { text: string, size: number, tracking: number, font: truetype.Font, lines: { Line }, ink: Box }
+
+local Text = {}
+
+--- How far apart sizes are tried, in canonical pixels.
+local Step = 2
+
+--- Every way to break `words` into `count` lines, as the word each line after the first starts at.
+local function breakings(words: number, count: number): { { number } }
+  local found: { { number } } = {}
+
+  local function choose(from: number, chosen: { number })
+    if #chosen == count - 1 then
+      table.insert(found, table.clone(chosen))
+
+      return
+    end
+
+    for start = from, words - (count - 1 - #chosen) + 1 do
+      table.insert(chosen, start)
+      choose(start + 1, chosen)
+      table.remove(chosen)
+    end
+  end
+
+  choose(2, {})
+
+  return found
+end
+
+--- The words from `first` to `last`, one space between each.
+local function joined(words: { string }, first: number, last: number): string
+  return table.concat(words, ' ', first, last)
+end
+
+--- A text broken into `count` lines at a size, balanced: of every way to break it into that many,
+--- the one whose longest line is shortest. Returns the lines and how wide the longest is.
+local function balanced(words: { string }, count: number, size: number, style: Style): ({ string }, number)
+  local options: truetype.Options = { tracking = style.tracking * size }
+  local best: { string } = {}
+  local bestWidth = math.huge
+
+  for _, starts in breakings(#words, count) do
+    local lines: { string } = {}
+    local widest, from = 0, 1
+
+    for _, start in starts do
+      table.insert(lines, joined(words, from, start - 1))
+      from = start
+    end
+
+    table.insert(lines, joined(words, from, #words))
+
+    for _, line in lines do
+      local metrics = style.font:measure(line, size, options)
+
+      widest = math.max(widest, metrics.right - metrics.left)
+    end
+
+    if widest < bestWidth then best, bestWidth = lines, widest end
+  end
+
+  return best, bestWidth
+end
+
+--- Sets lines at a size with their ink's top at a height, each aligned in the box. Returns the
+--- block.
+local function placed(text: string, lines: { string }, size: number, box: Box, top: number, style: Style): Block
+  local options: truetype.Options = { tracking = style.tracking * size }
+  local pitch = size * style.leading
+  local measured = [for line in lines => style.font:measure(line, size, options)]
+  local highest = math.huge
+
+  for index, metrics in measured do
+    highest = math.min(highest, (index - 1) * pitch + metrics.top)
+  end
+
+  local firstBaseline = top - highest
+  local out: { Line } = {}
+  local ink = { left = math.huge, top = math.huge, right = -math.huge, bottom = -math.huge }
+
+  for index, metrics in measured do
+    local baseline = firstBaseline + (index - 1) * pitch
+    local origin
+
+    if style.align == 'left' then
+      origin = box.left - metrics.left
+    elseif style.align == 'right' then
+      origin = box.right - metrics.right
+    else
+      origin = (box.left + box.right) / 2 - (metrics.left + metrics.right) / 2
+    end
+
+    local lineInk = theme.box(origin + metrics.left, baseline + metrics.top, origin + metrics.right, baseline + metrics.bottom)
+
+    table.insert(out, { text = lines[index], origin = origin, baseline = baseline, ink = lineInk })
+    ink.left, ink.right = math.min(ink.left, lineInk.left), math.max(ink.right, lineInk.right)
+    ink.top, ink.bottom = math.min(ink.top, lineInk.top), math.max(ink.bottom, lineInk.bottom)
+  end
+
+  return {
+    text = text,
+    size = size,
+    tracking = style.tracking * size,
+    font = style.font,
+    lines = out,
+    ink = theme.box(ink.left, ink.top, ink.right, ink.bottom),
+  }
+end
+
+--- How tall lines set at a size stand, top of the highest ink to bottom of the lowest.
+local function height(lines: { string }, size: number, style: Style): number
+  local options: truetype.Options = { tracking = style.tracking * size }
+  local pitch = size * style.leading
+  local highest, lowest = math.huge, -math.huge
+
+  for index, line in lines do
+    local metrics = style.font:measure(line, size, options)
+
+    highest = math.min(highest, (index - 1) * pitch + metrics.top)
+    lowest = math.max(lowest, (index - 1) * pitch + metrics.bottom)
+  end
+
+  return lowest - highest
+end
+
+--- The copy set at the largest size it fits the box at, its ink at the top of the box, or nothing
+--- and why not.
+function Text.try(text: string, box: Box, style: Style): (Block?, string)
+  local words = string.split(text, ' ')
+  local width, tall = box.right - box.left, box.bottom - box.top
+  local counts = math.min(style.lines, #words)
+  local reason = ''
+  -- The settings to try, best first. Without `prefer`, the larger size wins whatever the lines;
+  -- with it, fewer lines win as long as their size stays at `prefer` or above.
+  local tries: { { number } } = {}
+
+  if style.prefer then
+    for count = 1, counts do
+      local floor = if count < counts then math.max(style.prefer, style.least) else style.least
+
+      for size = style.most, floor, -Step do
+        table.insert(tries, { count, size })
+      end
+    end
+  else
+    for size = style.most, style.least, -Step do
+      for count = 1, counts do
+        table.insert(tries, { count, size })
+      end
+    end
+  end
+
+  for _, setting in tries do
+    local count, size = setting[1], setting[2]
+    local lines, widest = balanced(words, count, size, style)
+
+    if widest > width then
+      reason = `at {size} px in {count} line(s) its longest line is {math.ceil(widest)} px wide`
+      continue
+    end
+
+    local standing = height(lines, size, style)
+
+    if standing > tall then
+      reason = `at {size} px it stands {math.ceil(standing)} px tall in {count} line(s)`
+      continue
+    end
+
+    return placed(text, lines, size, box, box.top, style), ''
+  end
+
+  return nil, reason
+end
+
+--- The copy set at the largest size it fits the box at, or an error naming `what`, the box, and
+--- how the copy measured at its least size.
+function Text.fit(text: string, box: Box, style: Style, what: string): Block
+  local block, reason = Text.try(text, box, style)
+
+  if block then return block end
+
+  local width, tall = box.right - box.left, box.bottom - box.top
+
+  error(`{what} "{text}" doesn't fit {width}x{tall} px between {style.least} and {style.most} px: {reason}`, 0)
+end
+
+--- Moves a block down by a distance.
+function Text.shifted(block: Block, down: number): Block
+  local lines = [
+    for line in block.lines
+    => {
+      text = line.text,
+      origin = line.origin,
+      baseline = line.baseline + down,
+      ink = theme.box(line.ink.left, line.ink.top + down, line.ink.right, line.ink.bottom + down),
+    }
+  ]
+  local ink = block.ink
+
+  return {
+    text = block.text,
+    size = block.size,
+    tracking = block.tracking,
+    font = block.font,
+    lines = lines,
+    ink = theme.box(ink.left, ink.top + down, ink.right, ink.bottom + down),
+  }
+end
+
+--- One piece of a stack: its copy and how it is set.
+export type Entry = { text: string, style: Style, what: string }
+
+--- Sets copy one piece under another, `gap` apart, the group centered in the box. Each piece
+--- takes the largest size that leaves the pieces under it room at their least.
+function Text.stack(entries: { Entry }, box: Box, gap: number, what: string): { Block }
+  local blocks: { Block } = {}
+  local top = box.top
+
+  for index, entry in entries do
+    -- What the pieces under this one need at their least sizes.
+    local below = 0
+
+    for later = index + 1, #entries do
+      local laterEntry = entries[later]
+      local least = table.clone(laterEntry.style)
+
+      least.most = least.least
+
+      local block = Text.try(laterEntry.text, theme.box(box.left, 0, box.right, box.bottom - box.top), least)
+
+      if not block then
+        Text.fit(laterEntry.text, theme.box(box.left, 0, box.right, box.bottom - box.top), least, `{what} {laterEntry.what}`)
+      end
+
+      below += gap + (if block then block.ink.bottom - block.ink.top else 0)
+    end
+
+    local room = theme.box(box.left, top, box.right, box.bottom - below)
+    local block = Text.fit(entry.text, room, entry.style, `{what} {entry.what}`)
+
+    table.insert(blocks, block)
+    top = block.ink.bottom + gap
+  end
+
+  local spare = box.bottom - blocks[#blocks].ink.bottom
+
+  return [for block in blocks => Text.shifted(block, spare / 2)]
+end
+
+return Text

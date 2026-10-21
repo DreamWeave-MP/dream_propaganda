@@ -1,0 +1,76 @@
+--!strict
+--[[
+@dream-propaganda/canvas: drawing on the canonical canvas, at whatever size the poster is made.
+
+Templates draw in canonical coordinates (1200 by 1800); the canvas scales every shape, line of
+copy and image to its own size, so a poster at another size of the same shape is the same
+drawing. It also keeps what was placed where, by kind, so a build can hold every mark to the safe
+area and the layout debug view can draw the boxes.
+]]
+local magick = require '@magick'
+local path = require '@magick/path'
+local text = require './text'
+local theme = require './theme'
+
+type Box = theme.Box
+
+--- What was placed: copy, a figure, the logo, a panel, and the box it fills.
+export type Mark = { kind: string, label: string, box: Box }
+
+export type Canvas = { image: magick.Image, scale: number, marks: { Mark } }
+
+local Canvas = {}
+
+--- A canvas `scale` times the canonical size, filled with the palette's black.
+function Canvas.new(scale: number): Canvas
+  local width, height = math.floor(theme.Width * scale + 0.5), math.floor(theme.Height * scale + 0.5)
+
+  return { image = magick.new(width, height, theme.Palette.black), scale = scale, marks = {} }
+end
+
+--- A path to draw in canonical coordinates, flattened finely enough for the canvas's size.
+function Canvas.path(canvas: Canvas): path.Path
+  return path.new(0.25 / canvas.scale)
+end
+
+--- Notes what was placed where.
+function Canvas.mark(canvas: Canvas, kind: string, label: string, box: Box)
+  table.insert(canvas.marks, { kind = kind, label = label, box = box })
+end
+
+--- Fills a path drawn in canonical coordinates.
+function Canvas.fill(canvas: Canvas, shape: path.Path, color: string)
+  shape:transformed(canvas.scale, 0, 0):fill(canvas.image, color)
+end
+
+--- Fills a rectangle given in canonical coordinates.
+function Canvas.rect(canvas: Canvas, left: number, top: number, right: number, bottom: number, color: string)
+  Canvas.fill(canvas, Canvas.path(canvas):rect(left, top, right, bottom), color)
+end
+
+--- Draws a block of copy, and notes its ink as `label`.
+function Canvas.text(canvas: Canvas, block: text.Block, color: string, label: string)
+  local scale = canvas.scale
+  local shape = path.new(0.25)
+  local pen = shape:pen()
+
+  for _, line in block.lines do
+    block.font:outline(pen, line.text, block.size * scale, line.origin * scale, line.baseline * scale, { tracking = block.tracking * scale })
+  end
+
+  shape:fill(canvas.image, color)
+  Canvas.mark(canvas, 'copy', label, block.ink)
+end
+
+--- Screens an image over the canvas, its top left corner at a canonical point; the image is at
+--- the canvas's size already.
+function Canvas.screen(canvas: Canvas, image: magick.Image, left: number, top: number)
+  canvas.image:screen(image, math.floor(left * canvas.scale + 0.5), math.floor(top * canvas.scale + 0.5))
+end
+
+--- A canonical length in the canvas's pixels, whole.
+function Canvas.pixels(canvas: Canvas, length: number): number
+  return math.max(1, math.floor(length * canvas.scale + 0.5))
+end
+
+return Canvas

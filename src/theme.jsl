@@ -1,0 +1,117 @@
+--!strict
+--[[
+@dream-propaganda/theme: the style guide as numbers.
+
+Every coordinate is on the canonical canvas, 1200 by 1800, y down; a poster drawn at another size
+of the same shape scales them all. The palette is the style guide's, and nothing draws a color
+that isn't in it, except the logo, which keeps its own.
+]]
+local Theme = {}
+
+--- A box on the canvas: its left and top, and its right and bottom.
+export type Box = { left: number, top: number, right: number, bottom: number }
+
+--- A voice's colors: the purple that dominates it, the one that structures it, and what its call
+--- to action is set on.
+export type Colors = { accent: string, structure: string, panel: string }
+
+--- A template's zones, in reading order.
+export type Zones = { header: Box, figure: Box, support: Box, cta: Box }
+
+--- The sizes a role may be set at, and, for a headline, the size above which fewer lines win.
+export type Sizes = { least: number, most: number, prefer: number? }
+
+local function box(left: number, top: number, right: number, bottom: number): Box
+  return { left = left, top = top, right = right, bottom = bottom }
+end
+
+Theme.box = box
+
+--- The palette, by the style guide's token names.
+local Palette: { [string]: string } = {
+  black = '#070707',
+  shadow = '#290430',
+  violet = '#6B3F6F',
+  orchid = '#A269A7',
+  lavender = '#DA96E0',
+  pinkwhite = '#FFE6FF',
+  body = '#F0F0F0',
+  amber = '#FFB000',
+}
+
+Theme.Palette = Palette
+
+Theme.Width, Theme.Height = 1200, 1800
+
+--- How far everything stays from the edges.
+Theme.Safe = 72
+
+--- The optical grid: twelve columns between the safe edges, 24 apart.
+Theme.Columns, Theme.Gutter = 12, 24
+
+--- The installed font files each role is set in, by file name: one display family, Noto Sans
+--- (its Condensed Black for headlines and calls to action, Medium for supporting copy), and one
+--- monospaced family, Noto Sans Mono, for addresses and markings. Both are the SIL Open Font
+--- License's; they are read where they are installed and never shipped.
+Theme.Fonts = {
+  display = 'NotoSans-CondensedBlack.ttf',
+  support = 'NotoSans-Medium.ttf',
+  mono = 'NotoSansMono-Bold.ttf',
+}
+
+local Voices: { [string]: Colors } = {
+  founder = { accent = Theme.Palette.lavender, structure = Theme.Palette.violet, panel = Theme.Palette.lavender },
+  collective = { accent = Theme.Palette.orchid, structure = Theme.Palette.violet, panel = Theme.Palette.orchid },
+  doctrine = { accent = Theme.Palette.orchid, structure = Theme.Palette.violet, panel = Theme.Palette.orchid },
+}
+
+Theme.Voices = Voices
+
+--- Each template's zones, from the style guide's reading order: headline, then the figure, then
+--- the supporting line and the call to action. The footer is the same on every poster.
+local Layouts: { [string]: Zones } = {
+  ['founder-emblem'] = {
+    header = box(72, 120, 1128, 370),
+    figure = box(72, 405, 1128, 1175),
+    support = box(120, 1215, 1080, 1440),
+    cta = box(72, 1485, 1128, 1615),
+  },
+  ['collective-builders'] = {
+    header = box(72, 120, 1128, 430),
+    figure = box(72, 470, 1128, 1160),
+    support = box(120, 1205, 1080, 1440),
+    cta = box(72, 1485, 1128, 1615),
+  },
+  ['doctrine-diagram'] = {
+    header = box(72, 120, 1128, 560),
+    figure = box(72, 610, 1128, 1160),
+    support = box(120, 1205, 1080, 1440),
+    cta = box(72, 1485, 1128, 1615),
+  },
+}
+
+Theme.Zones = Layouts
+
+--- The footer: a rule, the destination and the poster's footer line under it on the left, and
+--- the signature mark on the right.
+Theme.Footer = {
+  rule = 1648,
+  destination = box(72, 1664, 1020, 1700),
+  line = box(72, 1708, 1020, 1728),
+  mark = box(1054, 1654, 1128, 1728),
+}
+
+--- The type sizes each role may be set at, in pixels on the canonical canvas: the largest that
+--- fits is taken, and one that doesn't fit at its least is an error.
+local Type: { [string]: Sizes } = {
+  headline = { least = 104, most = 210, prefer = 136 },
+  subheadline = { least = 68, most = 110 },
+  support = { least = 36, most = 50 },
+  cta = { least = 56, most = 84 },
+  destination = { least = 24, most = 32 },
+  line = { least = 16, most = 20 },
+}
+
+Theme.Type = Type
+
+return Theme

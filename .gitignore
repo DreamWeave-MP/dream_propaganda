@@ -1,0 +1,4 @@
+# Packed output, and builds and test output.
+*.jpk
+/target/
+/posters/

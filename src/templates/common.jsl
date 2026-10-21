@@ -1,0 +1,161 @@
+--!strict
+--[[
+What every template draws the same way: the headline and subheadline, the supporting line, the
+call to action on its panel, and the footer with the destination, the footer line, and the small
+signature mark.
+]]
+local art = require '../art'
+local campaign = require '../campaign'
+local canvas = require '../canvas'
+local magick = require '@magick'
+local text = require '../text'
+local theme = require '../theme'
+local truetype = require '@truetype'
+
+--- The fonts each role is set in.
+export type Fonts = { display: truetype.Font, support: truetype.Font, mono: truetype.Font }
+
+--- What a template draws from besides the copy: the fonts, and the logo as read.
+export type Assets = { fonts: Fonts, logo: magick.Image }
+
+local Common = {}
+
+local Palette = theme.Palette
+
+--- The headline over the subheadline, centered or flush left in the template's header zone.
+function Common.header(
+  surface: canvas.Canvas,
+  poster: campaign.Poster,
+  assets: Assets,
+  zone: theme.Box,
+  lines: number,
+  align: 'left' | 'center'
+)
+  local voice = theme.Voices[poster.voice]
+  local headline: text.Style = {
+    font = assets.fonts.display,
+    least = theme.Type.headline.least,
+    most = theme.Type.headline.most,
+    prefer = theme.Type.headline.prefer,
+    lines = lines,
+    leading = 0.98,
+    tracking = 0.01,
+    align = align,
+  }
+
+  local subheadline: text.Style = {
+    font = assets.fonts.display,
+    least = theme.Type.subheadline.least,
+    most = theme.Type.subheadline.most,
+    lines = 1,
+    leading = 1,
+    tracking = 0.015,
+    align = align,
+  }
+
+  local blocks = text.stack({
+    { text = poster.headline, style = headline, what = 'headline' },
+    { text = poster.subheadline, style = subheadline, what = 'subheadline' },
+  }, zone, 30, poster.id)
+
+  canvas.text(surface, blocks[1], Palette.pinkwhite, 'headline')
+  canvas.text(surface, blocks[2], voice.accent, 'subheadline')
+end
+
+--- The supporting line, in up to two lines, centered or flush left in a zone.
+function Common.support(surface: canvas.Canvas, poster: campaign.Poster, assets: Assets, zone: theme.Box, align: 'left' | 'center')
+  local style: text.Style = {
+    font = assets.fonts.support,
+    least = theme.Type.support.least,
+    most = theme.Type.support.most,
+    lines = 2,
+    leading = 1.32,
+    tracking = 0,
+    align = align,
+  }
+  local block = text.fit(poster.support, zone, style, `{poster.id} support`)
+  local spare = zone.bottom - block.ink.bottom
+
+  canvas.text(surface, text.shifted(block, spare / 2), Palette.body, 'support')
+end
+
+--- The call to action, black on a panel of the voice's color across the zone.
+function Common.cta(surface: canvas.Canvas, poster: campaign.Poster, assets: Assets, zone: theme.Box)
+  local voice = theme.Voices[poster.voice]
+  local style: text.Style = {
+    font = assets.fonts.display,
+    least = theme.Type.cta.least,
+    most = theme.Type.cta.most,
+    lines = 1,
+    leading = 1,
+    tracking = 0.02,
+    align = 'center',
+  }
+  local inside = theme.box(zone.left + 48, zone.top + 26, zone.right - 48, zone.bottom - 26)
+  local block = text.fit(poster.cta, inside, style, `{poster.id} cta`)
+  local spare = inside.bottom - block.ink.bottom
+
+  canvas.rect(surface, zone.left, zone.top, zone.right, zone.bottom, voice.panel)
+  canvas.mark(surface, 'panel', 'cta panel', zone)
+  canvas.text(surface, text.shifted(block, spare / 2), Palette.black, 'cta')
+end
+
+--- The small logo that signs a poster whose subject isn't the founder.
+function Common.signature(surface: canvas.Canvas, assets: Assets)
+  local mark = theme.Footer.mark
+  local size = canvas.pixels(surface, mark.right - mark.left)
+
+  canvas.screen(surface, art.logo(assets.logo, size), mark.left, mark.top)
+  canvas.mark(surface, 'logo', 'signature', mark)
+end
+
+--- The rule, the destination, and the footer line.
+function Common.footer(surface: canvas.Canvas, poster: campaign.Poster, assets: Assets)
+  local footer = theme.Footer
+  local voice = theme.Voices[poster.voice]
+  local destination: text.Style = {
+    font = assets.fonts.mono,
+    least = theme.Type.destination.least,
+    most = theme.Type.destination.most,
+    lines = 1,
+    leading = 1,
+    tracking = 0,
+    align = 'left',
+  }
+
+  local line: text.Style = {
+    font = assets.fonts.mono,
+    least = theme.Type.line.least,
+    most = theme.Type.line.most,
+    lines = 1,
+    leading = 1,
+    tracking = 0.02,
+    align = 'left',
+  }
+
+  canvas.rect(surface, theme.Safe, footer.rule, theme.Width - theme.Safe, footer.rule + 2, voice.structure)
+  canvas.text(surface, text.fit(poster.destination, footer.destination, destination, `{poster.id} destination`), Palette.body, 'destination')
+  canvas.text(surface, text.fit(poster.footer, footer.line, line, `{poster.id} footer`), voice.accent, 'footer')
+end
+
+--- Fills each part on the canvas, in order, and notes the box they cover together. Returns how
+--- many primitives they were.
+function Common.parts(surface: canvas.Canvas, parts: { art.Part }, label: string): number
+  local count = 0
+  local left, top, right, bottom = math.huge, math.huge, -math.huge, -math.huge
+
+  for _, part in parts do
+    local partLeft, partTop, partRight, partBottom = part.shape:bounds()
+
+    canvas.fill(surface, part.shape, part.color)
+    count += part.primitives
+    left, top = math.min(left, partLeft), math.min(top, partTop)
+    right, bottom = math.max(right, partRight), math.max(bottom, partBottom)
+  end
+
+  canvas.mark(surface, 'figure', label, theme.box(left, top, right, bottom))
+
+  return count
+end
+
+return Common

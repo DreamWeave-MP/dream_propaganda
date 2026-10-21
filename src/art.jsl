@@ -1,0 +1,152 @@
+--!strict
+--[[
+@dream-propaganda/art: the pictures, from primitives and the one supplied logo.
+
+  logo(source, size) -> Image          the logo at a size, its square edge feathered away
+  builder(pose) -> { Part }            an anonymous builder: a head, a body, two arms
+  tablet / wrench / block              what builders hold and build
+
+The logo is the founder's own file, never redrawn. It is opaque on a near-black square, so it is
+screened onto the poster rather than laid over it: screening black changes nothing, so the
+square's ground disappears into the poster's and its glow and color come through. Its outermost
+band is feathered to nothing first, because the square's edge isn't black everywhere (the flare
+reaches the right edge) and would otherwise show as a seam.
+
+Builders are four primitives each, flat and faceless, so three of them and what they build stay
+within the style guide's budget of 25.
+]]
+local magick = require '@magick'
+local path = require '@magick/path'
+
+--- A filled shape and its color, and how many primitives it is made of.
+export type Part = { shape: path.Path, color: string, primitives: number }
+
+--- Where a builder stands and what it does with its hands: its center on the ground, its height,
+--- and where each hand is.
+export type Pose = {
+  center: number,
+  ground: number,
+  height: number,
+  leftHand: { number },
+  rightHand: { number },
+  color: string,
+}
+
+local Art = {}
+
+--- How much of the logo's side the feather takes, and how soft it is.
+local FeatherInset, FeatherSoftness = 0.05, 0.03
+
+--- The logo at `size` pixels square, resampled from the source (by area when it shrinks, by
+--- interpolation when it grows), its alpha feathered from opaque inside to clear at the edge.
+function Art.logo(source: magick.Image, size: number): magick.Image
+  local sized = if size < source.width then source:scale(size, size) else source:resize(size, size)
+  local inset = math.floor(size * FeatherInset + 0.5)
+  local covered = buffer.create(size * size)
+
+  for row = inset, size - 1 - inset do
+    buffer.fill(covered, row * size + inset, 255, size - 2 * inset)
+  end
+
+  local radius = math.max(1, size * FeatherSoftness)
+  local feather = magick.blurMask(magick.blurMask(magick.mask(size, size, covered), radius), radius)
+
+  return sized:copyAlpha(magick.maskToImage(feather), 'copy')
+end
+
+--- Where an elbow goes between a shoulder and a hand, two bones of `bone` each: an arm raised or
+--- lowered along the body bends away from it (toward `outward`, -1 left or 1 right), and one
+--- reaching across bends down. A hand out of reach is pulled in along the line to it.
+local function elbow(shoulder: { number }, hand: { number }, bone: number, outward: number): ({ number }, { number })
+  local across, down = hand[1] - shoulder[1], hand[2] - shoulder[2]
+  local distance = math.sqrt(across * across + down * down)
+  local reach = 2 * bone * 0.999
+
+  if distance > reach then
+    hand = { shoulder[1] + across * reach / distance, shoulder[2] + down * reach / distance }
+    across, down, distance = hand[1] - shoulder[1], hand[2] - shoulder[2], reach
+  end
+
+  if distance == 0 then return { shoulder[1], shoulder[2] + bone }, hand end
+
+  local rise = math.sqrt(bone * bone - (distance / 2) ^ 2)
+  local middleX, middleY = shoulder[1] + across / 2, shoulder[2] + down / 2
+
+  local normalX, normalY = -down / distance * rise, across / distance * rise
+  local first, second = { middleX + normalX, middleY + normalY }, { middleX - normalX, middleY - normalY }
+
+  if math.abs(down) > math.abs(across) then
+    local away = (first[1] - shoulder[1]) * outward >= (second[1] - shoulder[1]) * outward
+
+    return if away then first else second, hand
+  end
+
+  return if first[2] >= second[2] then first else second, hand
+end
+
+--- An anonymous builder: a round head, one body from the shoulders to the feet with the legs
+--- apart, and two arms bent at the elbow toward where the hands are.
+function Art.builder(pose: Pose): { Part }
+  local {center, ground, height} = pose
+  local head = height * 0.075
+  local top = ground - height
+  local shoulders = top + head * 2 + height * 0.035
+  local waist, crotch = ground - height * 0.47, ground - height * 0.35
+  local shoulderWidth, waistWidth = height * 0.135, height * 0.085
+  local footOuter, footInner = height * 0.115, height * 0.03
+  local bone, armWidth = height * 0.175, height * 0.06
+  local headShape = path.new():circle(center, top + head, head)
+  local body = path.new():polygon {
+    { center - shoulderWidth, shoulders },
+    { center + shoulderWidth, shoulders },
+    { center + waistWidth, waist },
+    { center + footOuter, ground },
+    { center + footInner, ground },
+    { center, crotch },
+    { center - footInner, ground },
+    { center - footOuter, ground },
+    { center - waistWidth, waist },
+  }
+
+  local parts: { Part } = {
+    { shape = headShape, color = pose.color, primitives = 1 },
+    { shape = body, color = pose.color, primitives = 1 },
+  }
+
+  for _, side in { -1, 1 } do
+    local shoulder = { center + side * (shoulderWidth - armWidth / 2), shoulders + armWidth / 2 }
+    local wanted = if side < 0 then pose.leftHand else pose.rightHand
+    local joint, hand = elbow(shoulder, wanted, bone, side)
+    local arm = path.new():polyline({ shoulder, joint, hand }, armWidth, 'round')
+
+    table.insert(parts, { shape = arm, color = pose.color, primitives = 1 })
+  end
+
+  return parts
+end
+
+--- A tablet held upright, its bottom middle at a point.
+function Art.tablet(centerX: number, bottom: number, width: number, height: number, color: string): Part
+  local shape = path.new():roundRect(centerX - width / 2, bottom - height, centerX + width / 2, bottom, width * 0.12)
+
+  return { shape = shape, color = color, primitives = 1 }
+end
+
+--- A right-angled wrench held at a point: a handle up from it and a jaw across its top.
+function Art.wrench(handX: number, handY: number, length: number, side: number, width: number, color: string): Part
+  local shape = path.new():polyline({ { handX, handY }, { handX, handY - length }, { handX + side * length * 0.45, handY - length } }, width, 'square')
+
+  return { shape = shape, color = color, primitives = 1 }
+end
+
+--- A block between two corners, its corners slightly rounded.
+function Art.block(left: number, top: number, right: number, bottom: number, color: string): Part
+  return { shape = path.new():roundRect(left, top, right, bottom, 6), color = color, primitives = 1 }
+end
+
+--- A shape as a part of one primitive.
+function Art.part(shape: path.Path, color: string): Part
+  return { shape = shape, color = color, primitives = 1 }
+end
+
+return Art

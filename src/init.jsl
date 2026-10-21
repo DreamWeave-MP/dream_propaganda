@@ -1,0 +1,127 @@
+--!strict
+--[[
+@dream-propaganda: OPERATION: BUILD SOMETHING's posters, drawn by Jess.
+
+  render(poster, assets, options) -> Rendered      one poster, and where everything on it went
+  debug(rendered) -> Image                         the same poster with its layout drawn over it
+  campaign                                         @dream-propaganda/campaign
+
+Each voice has its template: the founder's posters show the supplied S3 logo, the collective's
+anonymous builders at shared work, the doctrine's a diagram. Everything is drawn from primitives,
+the copy and that logo, by @magick and @truetype, so the same inputs make the same pixels.
+Copy that doesn't fit, or anything placed outside the safe area, stops the poster rather than
+shipping it.
+]]
+local campaign = require '@self/campaign'
+local canvas = require '@self/canvas'
+local collective = require '@self/templates/collective'
+local common = require '@self/templates/common'
+local doctrine = require '@self/templates/doctrine'
+local founder = require '@self/templates/founder'
+local magick = require '@magick'
+local path = require '@magick/path'
+local theme = require '@self/theme'
+
+export type Assets = common.Assets
+export type Campaign = campaign.Campaign
+export type Edition = campaign.Edition
+export type Poster = campaign.Poster
+
+--- How a poster is made: at a scale of the canonical canvas.
+export type Options = { scale: number }
+
+--- A drawn poster: its pixels, what was placed where (canonical coordinates), and how many
+--- primitives its picture took.
+export type Rendered = { poster: campaign.Poster, image: magick.Image, marks: { canvas.Mark }, primitives: number, scale: number }
+
+local Propaganda = {}
+
+Propaganda.campaign = campaign
+Propaganda.theme = theme
+
+local Templates: { [string]: (canvas.Canvas, campaign.Poster, Assets) -> number } = {
+  ['founder-emblem'] = founder.draw,
+  ['collective-builders'] = collective.draw,
+  ['doctrine-diagram'] = doctrine.draw,
+}
+
+--- The marks outside the safe area, as messages.
+local function outside(marks: { canvas.Mark }): { string }
+  local problems: { string } = {}
+  local least, right, bottom = theme.Safe, theme.Width - theme.Safe, theme.Height - theme.Safe
+  -- Ink is measured to the outline, and coverage reaches a fraction of a pixel past it.
+  local slack = 0.5
+
+  for _, mark in marks do
+    local box = mark.box
+
+    if box.left < least - slack or box.top < least - slack or box.right > right + slack or box.bottom > bottom + slack then
+      local where = `{math.floor(box.left)},{math.floor(box.top)} to {math.ceil(box.right)},{math.ceil(box.bottom)}`
+
+      table.insert(problems, `{mark.kind} '{mark.label}' reaches {where}, past the {theme.Safe} px safe area`)
+    end
+  end
+
+  return problems
+end
+
+--- Draws a poster, or raises naming what kept it from being drawn.
+function Propaganda.render(poster: campaign.Poster, assets: Assets, options: Options?): Rendered
+  local draw = Templates[poster.template]
+
+  if not draw then error(`{poster.id}: unknown template '{poster.template}'`, 0) end
+
+  local scale = if options then options.scale else 1
+  local surface = canvas.new(scale)
+  local primitives = draw(surface, poster, assets)
+  local problems = outside(surface.marks)
+
+  if #problems > 0 then error(`{poster.id}:\n  {table.concat(problems, '\n  ')}`, 0) end
+
+  return { poster = poster, image = surface.image, marks = surface.marks, primitives = primitives, scale = scale }
+end
+
+--- The poster with its layout drawn over it: the safe area, the twelve columns, the template's
+--- zones, and the box of everything placed. For checking a layout, never for shipping.
+function Propaganda.debug(rendered: Rendered): magick.Image
+  local image = rendered.image:clone()
+  local scale = rendered.scale
+  local zones = theme.Zones[rendered.poster.template]
+  local safe, gutter = theme.Safe, theme.Gutter
+  local columnWidth = (theme.Width - 2 * safe - (theme.Columns - 1) * gutter) / theme.Columns
+  local columns = path.new()
+
+  for column = 0, theme.Columns - 1 do
+    local left = safe + column * (columnWidth + gutter)
+
+    columns:rect(left, safe, left + columnWidth, theme.Height - safe)
+  end
+
+  columns:transformed(scale, 0, 0):fill(image, '#DA96E01C')
+
+  local outlines = path.new():frame(safe, safe, theme.Width - safe, theme.Height - safe, 2)
+
+  outlines:transformed(scale, 0, 0):fill(image, theme.Palette.amber)
+
+  local zoneLines = path.new()
+
+  for _, zone in { zones.header, zones.figure, zones.support, zones.cta } :: { theme.Box } do
+    zoneLines:frame(zone.left, zone.top, zone.right, zone.bottom, 2)
+  end
+
+  zoneLines:transformed(scale, 0, 0):fill(image, '#A269A7C0')
+
+  local markLines = path.new()
+
+  for _, mark in rendered.marks do
+    local box = mark.box
+
+    markLines:frame(box.left - 1, box.top - 1, box.right + 1, box.bottom + 1, 1.5)
+  end
+
+  markLines:transformed(scale, 0, 0):fill(image, '#F0F0F0D0')
+
+  return image
+end
+
+return Propaganda

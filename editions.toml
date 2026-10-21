@@ -1,0 +1,33 @@
+# Editions: the same posters with copy replaced field by field, for venues the canonical copy in
+# posters.toml doesn't suit. posters.toml is never edited for an edition; an edition names the
+# fields it replaces, and only those. `forbid` lists words, matched ignoring case, that no field
+# of any poster in the edition may hold once it is applied: the build refuses an edition that
+# still says one.
+#
+# Every replacement comes from the campaign documents, not from the renderer: the style guide's
+# publication-safe alternate CTA, BUILD WHAT COMES NEXT., and the poster copy's editorial notes,
+# which give P05 its distribution-safe headline and P03 its newcomer copy. Alt text that quoted a
+# replaced line quotes its replacement.
+
+[safe]
+description = "Venue-safe: the style guide's alternate CTA where the canonical copy swears, and P05's distribution-safe headline."
+forbid = ["fuck", "shit"]
+
+[safe.P01]
+cta = "BUILD WHAT COMES NEXT."
+
+[safe.P05]
+headline = "TIRED OF THE SAME OLD WALLS?"
+alt = "A pair of simple tool-carrying builder silhouettes with the message: Tired of the same old walls? Good. Build something."
+
+[safe.P10]
+footer = "JESS // BUILD WHAT COMES NEXT."
+
+[newcomer]
+description = "P03's gentler copy for newcomer channels, from the poster copy's editorial notes."
+forbid = []
+
+[newcomer.P03]
+headline = "WE NEED YOUR IDEAS"
+subheadline = "AND YOUR HELP BUILDING THEM"
+alt = "Three simplified builders assembling shared components beneath the words: We need your ideas, and your help building them."

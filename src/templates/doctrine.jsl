@@ -1,0 +1,172 @@
+--!strict
+--[[
+`doctrine-diagram`: a principle or a promise, set flush left in large type over a diagram drawn
+from rules and blocks. No people and no pictures; no numbers either, since none of these shows
+measured data. Rules are violet, what the diagram is about orchid, and amber marks one point at
+most.
+]]
+local campaign = require '../campaign'
+local canvas = require '../canvas'
+local common = require './common'
+local text = require '../text'
+local theme = require '../theme'
+
+local Doctrine = {}
+
+local Palette = theme.Palette
+
+--- A diagram draws itself in the figure zone and returns how many primitives it took.
+type Diagram = (surface: canvas.Canvas, assets: common.Assets) -> number
+
+local Diagrams: { [string]: Diagram } = {}
+
+--- Sets a label in the monospaced face at one size, centered in a box, and draws it.
+local function label(surface: canvas.Canvas, assets: common.Assets, words: string, box: theme.Box, size: number, color: string)
+  local style: text.Style = {
+    font = assets.fonts.mono,
+    least = size,
+    most = size,
+    lines = 1,
+    leading = 1,
+    tracking = 0.04,
+    align = 'center',
+  }
+  local block = text.fit(words, box, style, `label {words}`)
+  local spare = box.bottom - block.ink.bottom
+
+  canvas.text(surface, text.shifted(block, spare / 2), color, `label {words}`)
+end
+
+-- Three bars under a ruler: work held to a scale. The bars carry no figures, since nothing here
+-- was measured; the amber tick is where the longest stops.
+Diagrams['measurement-bars'] = function(surface: canvas.Canvas, _assets: common.Assets): number
+  local left, right = 150, 1050
+  local ruler = canvas.path(surface):rect(left, 676, right, 680)
+
+  for tick = 0, 20 do
+    local tickX = left + (right - left) * tick / 20
+    local reach = if tick % 5 == 0 then 34 else 18
+
+    ruler:rect(tickX - 2, 680 - reach, tickX + 2, 680)
+  end
+
+  canvas.fill(surface, ruler, Palette.violet)
+
+  local bars = canvas.path(surface)
+    :rect(left, 740, left + 520, 830)
+    :rect(left, 870, left + 745, 960)
+    :rect(left, 1000, left + 880, 1090)
+
+  canvas.fill(surface, bars, Palette.orchid)
+  canvas.rect(surface, left + 880 - 2, 984, left + 880 + 4, 1106, Palette.amber)
+  canvas.rect(surface, left - 6, 720, left - 2, 1110, Palette.violet)
+  canvas.mark(surface, 'figure', 'measurement-bars', theme.box(left - 6, 646, right + 2, 1110))
+
+  -- The ruler and its ticks, three bars, the amber mark, the axis.
+  return 6
+end
+
+-- Three blocks, each set on the one before it and further along, and the outline of the next
+-- one, which nobody has built yet.
+Diagrams['inheritance-blocks'] = function(surface: canvas.Canvas, _assets: common.Assets): number
+  local width, height, step = 250, 120, 236
+  local colors = { Palette.violet, Palette.orchid, Palette.lavender }
+  local left, bottom = 110, 1120
+
+  for index, color in colors do
+    local blockLeft, blockBottom = left + (index - 1) * step, bottom - (index - 1) * height
+
+    canvas.fill(surface, canvas.path(surface):roundRect(blockLeft, blockBottom - height + 4, blockLeft + width, blockBottom, 8), color)
+  end
+
+  local nextLeft, nextBottom = left + 3 * step, bottom - 3 * height
+
+  canvas.fill(surface, canvas.path(surface):frame(nextLeft, nextBottom - height + 4, nextLeft + width, nextBottom, 6), Palette.pinkwhite)
+  canvas.mark(surface, 'figure', 'inheritance-blocks', theme.box(left, nextBottom - height + 4, nextLeft + width, bottom))
+
+  return 4
+end
+
+-- What runs on Jess, stacked on it: a script, a package, an application, each on the one below,
+-- the runtime the foundation under all of them.
+Diagrams['runtime-stack'] = function(surface: canvas.Canvas, assets: common.Assets): number
+  local left, right = 210, 990
+  local layers = { 'APPLICATION', 'PACKAGE', 'SCRIPT' }
+  local top, height, gap = 660, 92, 18
+
+  for index, name in layers do
+    local layerTop = top + (index - 1) * (height + gap)
+    local inset = (#layers - index) * 40
+    local box = theme.box(left + inset, layerTop, right - inset, layerTop + height)
+
+    canvas.fill(surface, canvas.path(surface):frame(box.left, box.top, box.right, box.bottom, 5), Palette.violet)
+    label(surface, assets, name, theme.box(box.left, box.top + 24, box.right, box.bottom - 24), 40, Palette.pinkwhite)
+  end
+
+  local foundationTop = top + #layers * (height + gap) + 12
+  local foundation = theme.box(left - 60, foundationTop, right + 60, foundationTop + 116)
+
+  canvas.rect(surface, foundation.left, foundation.top, foundation.right, foundation.bottom, Palette.orchid)
+  label(surface, assets, 'JESS', theme.box(foundation.left, foundation.top + 30, foundation.right, foundation.bottom - 30), 56, Palette.black)
+  canvas.mark(surface, 'figure', 'runtime-stack', theme.box(foundation.left, top, foundation.right, foundation.bottom))
+
+  -- Three frames, the foundation, and four labels.
+  return 8
+end
+
+-- One script, open: a window named main.jsl, the command that runs it, and the cursor after it.
+-- The command is the real one.
+Diagrams['single-script'] = function(surface: canvas.Canvas, assets: common.Assets): number
+  local box = theme.box(150, 660, 1050, 1100)
+  local bar = 74
+
+  canvas.fill(surface, canvas.path(surface):roundRect(box.left, box.top, box.right, box.top + bar, 14), Palette.violet)
+  canvas.rect(surface, box.left, box.top + bar - 14, box.right, box.top + bar, Palette.violet)
+  canvas.fill(surface, canvas.path(surface):frame(box.left, box.top + bar - 2, box.right, box.bottom, 5), Palette.violet)
+  label(surface, assets, 'main.jsl', theme.box(box.left, box.top + 18, box.right, box.top + bar - 18), 34, Palette.pinkwhite)
+
+  local style: text.Style = {
+    font = assets.fonts.mono,
+    least = 44,
+    most = 44,
+    lines = 1,
+    leading = 1,
+    tracking = 0,
+    align = 'left',
+  }
+  local prompt = text.fit('$', theme.box(box.left + 56, box.top + 150, box.right, box.top + 210), style, 'prompt')
+  local command = text.fit('jess run main.jsl', theme.box(prompt.ink.right + 30, box.top + 150, box.right - 56, box.top + 210), style, 'command')
+
+  canvas.text(surface, prompt, Palette.orchid, 'prompt')
+  canvas.text(surface, command, Palette.body, 'command')
+
+  local cursorLeft = box.left + 56
+  local cursorTop = command.ink.bottom + 60
+
+  canvas.rect(surface, cursorLeft, cursorTop, cursorLeft + 28, cursorTop + 52, Palette.lavender)
+  canvas.mark(surface, 'figure', 'single-script', box)
+
+  -- The title bar, the frame, the name, the prompt, the command, the cursor.
+  return 6
+end
+
+function Doctrine.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: common.Assets): number
+  local zones = theme.Zones['doctrine-diagram']
+  local diagram = Diagrams[poster.subject]
+
+  if not diagram then error(`{poster.id}: doctrine-diagram draws no subject '{poster.subject}'`, 0) end
+
+  common.header(surface, poster, assets, zones.header, 2, 'left')
+
+  local count = diagram(surface, assets)
+
+  -- Flush left, the supporting line starts where the headline does.
+  common.support(surface, poster, assets, theme.box(theme.Safe, zones.support.top, zones.support.right, zones.support.bottom), 'left')
+  common.cta(surface, poster, assets, zones.cta)
+  common.signature(surface, assets)
+  common.footer(surface, poster, assets)
+
+  return count + 1
+end
+
+return Doctrine

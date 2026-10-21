@@ -1,0 +1,334 @@
+--!strict
+--[[
+@dream-propaganda/campaign: the campaign's copy, read and held to its rules.
+
+  decode(text, source) -> Campaign           posters.toml, every problem reported at once
+  decodeEditions(text, campaign, source) -> { [string]: Edition }
+  apply(campaign, edition?) -> { Poster }    each poster's copy as an edition replaces it
+  slug(text) -> string                       a file name's words from a line of copy
+
+The copy is the source of truth: nothing here rewrites a word of it. A field that is missing, a
+key nobody reads, a voice drawn with the wrong template or a destination that isn't a URL stops
+the build before anything is drawn.
+]]
+local toml = require '@jess/data/toml'
+
+--- Who speaks a poster, which decides what it shows: the founder's own mark, anonymous builders,
+--- or a diagram.
+export type Voice = 'founder' | 'collective' | 'doctrine'
+
+--- A poster's copy and how it is drawn, as posters.toml gives it.
+export type Poster = {
+  id: string,
+  voice: Voice,
+  template: string,
+  subject: string,
+  headline: string,
+  subheadline: string,
+  support: string,
+  cta: string,
+  destination: string,
+  footer: string,
+  alt: string,
+}
+
+export type Campaign = { name: string, version: number, baseUrl: string, posters: { Poster } }
+
+--- Copy that replaces a poster's, field by field, and the words none of an edition's copy may
+--- hold.
+export type Edition = {
+  name: string,
+  description: string,
+  forbid: { string },
+  posters: { [string]: { [string]: string } },
+}
+
+local Campaign = {}
+
+--- The template each voice is drawn with, and the subjects that template draws.
+local Templates: { [string]: { template: string, subjects: { string } } } = {
+  founder = { template = 'founder-emblem', subjects = { 's3-logo' } },
+  collective = {
+    template = 'collective-builders',
+    subjects = { 'three-builders', 'shared-beam', 'builders-with-tools', 'interlocking-blocks' },
+  },
+  doctrine = {
+    template = 'doctrine-diagram',
+    subjects = { 'measurement-bars', 'inheritance-blocks', 'runtime-stack', 'single-script' },
+  },
+}
+
+--- How many posters of each voice the first wave holds.
+local Wave: { [string]: number } = { founder = 2, collective = 4, doctrine = 4 }
+
+--- A poster's fields, every one required, in the order posters.toml writes them.
+local Fields = {
+  'id',
+  'voice',
+  'template',
+  'subject',
+  'headline',
+  'subheadline',
+  'support',
+  'cta',
+  'destination',
+  'footer',
+  'alt',
+}
+
+--- The fields an edition may replace: the copy, never what decides the drawing.
+local CopyFields = { 'headline', 'subheadline', 'support', 'cta', 'footer', 'alt' }
+
+--- Whether a value is an absolute http(s) URL with a host.
+local function isUrl(value: string): boolean
+  return string.match(value, '^https?://[%w%-]+%.[%w%-%.]+[%w%-]/?[%w%-%._~/%%?#=&]*$') ~= nil
+end
+
+--- The poster at `index` of the decoded `poster` array, its problems added to `problems`.
+local function poster(entry: unknown, index: number, problems: { string }): Poster?
+  if type(entry) ~= 'table' then
+    table.insert(problems, `poster {index} is not a table`)
+
+    return nil
+  end
+
+  local fields = entry :: { [string]: unknown }
+  local name = if type(fields.id) == 'string' then fields.id :: string else `poster {index}`
+  local count = #problems
+
+  for key in fields do
+    if not table.find(Fields, key) then table.insert(problems, `{name}: unknown field '{key}'`) end
+  end
+
+  for _, field in Fields do
+    local value = fields[field]
+
+    if type(value) ~= 'string' then
+      table.insert(problems, `{name}: '{field}' must be a string`)
+    elseif string.match(value, '^%s*$') then
+      table.insert(problems, `{name}: '{field}' is empty`)
+    end
+  end
+
+  if #problems > count then return nil end
+
+  local read = fields :: { [string]: string }
+
+  if not string.match(read.id, '^P%d%d$') then
+    table.insert(problems, `{name}: id must be P and two digits`)
+  end
+
+  local voice = Templates[read.voice]
+
+  if not voice then
+    table.insert(problems, `{name}: unknown voice '{read.voice}'`)
+  elseif read.template ~= voice.template then
+    table.insert(problems, `{name}: a {read.voice} poster is drawn with '{voice.template}', not '{read.template}'`)
+  elseif not table.find(voice.subjects, read.subject) then
+    table.insert(problems, `{name}: '{read.template}' draws no subject '{read.subject}'`)
+  end
+
+  if not isUrl(read.destination) then
+    table.insert(problems, `{name}: destination '{read.destination}' is not a URL`)
+  end
+
+  if #problems > count then return nil end
+
+  return {
+    id = read.id,
+    voice = read.voice :: Voice,
+    template = read.template,
+    subject = read.subject,
+    headline = read.headline,
+    subheadline = read.subheadline,
+    support = read.support,
+    cta = read.cta,
+    destination = read.destination,
+    footer = read.footer,
+    alt = read.alt,
+  }
+end
+
+--- The campaign posters.toml holds, or an error listing every problem in it. `source` names the
+--- file in the message.
+function Campaign.decode(text: string, source: string): Campaign
+  local document = toml.decode(text) :: { [string]: unknown }
+  local problems: { string } = {}
+
+  for key in document do
+    if key ~= 'campaign' and key ~= 'version' and key ~= 'base_url' and key ~= 'poster' then
+      table.insert(problems, `unknown key '{key}'`)
+    end
+  end
+
+  if type(document.campaign) ~= 'string' then table.insert(problems, "'campaign' must be a string") end
+  if type(document.version) ~= 'number' then table.insert(problems, "'version' must be a number") end
+
+  if type(document.base_url) ~= 'string' or not isUrl(document.base_url :: string) then
+    table.insert(problems, "'base_url' must be a URL")
+  end
+
+  local posters: { Poster } = {}
+  local entries = document.poster
+
+  if type(entries) ~= 'table' then
+    table.insert(problems, 'no [[poster]] entries')
+  else
+    for index, entry in entries :: { unknown } do
+      local read = poster(entry, index, problems)
+
+      if read then table.insert(posters, read) end
+    end
+  end
+
+  local seen: { [string]: boolean } = {}
+  local voices: { [string]: number } = {}
+
+  for _, read in posters do
+    if seen[read.id] then table.insert(problems, `{read.id}: id used twice`) end
+
+    seen[read.id] = true
+    voices[read.voice] = (voices[read.voice] or 0) + 1
+  end
+
+  if #problems == 0 then
+    for voice, wanted in Wave do
+      local found = voices[voice] or 0
+
+      if found ~= wanted then table.insert(problems, `the wave has {wanted} {voice} posters, not {found}`) end
+    end
+
+    for number = 1, 10 do
+      local id = string.format('P%02d', number)
+
+      if not seen[id] then table.insert(problems, `poster {id} is missing`) end
+    end
+  end
+
+  if #problems > 0 then error(`{source}:\n  {table.concat(problems, '\n  ')}`, 0) end
+
+  table.sort(posters, function(left: Poster, right: Poster): boolean
+    return left.id < right.id
+  end)
+
+  return {
+    name = document.campaign :: string,
+    version = document.version :: number,
+    baseUrl = document.base_url :: string,
+    posters = posters,
+  }
+end
+
+--- The editions editions.toml holds, by name, each checked against the campaign: posters it
+--- names exist, fields it replaces are copy, and words it forbids are gone once it is applied.
+function Campaign.decodeEditions(text: string, campaign: Campaign, source: string): { [string]: Edition }
+  local document = toml.decode(text) :: { [string]: unknown }
+  local problems: { string } = {}
+  local editions: { [string]: Edition } = {}
+  local ids: { [string]: boolean } = {}
+
+  for _, read in campaign.posters do
+    ids[read.id] = true
+  end
+
+  for name, value in document do
+    if type(value) ~= 'table' then
+      table.insert(problems, `edition '{name}' is not a table`)
+      continue
+    end
+
+    local fields = value :: { [string]: unknown }
+    local edition: Edition = { name = name, description = '', forbid = {}, posters = {} }
+
+    for key, entry in fields do
+      if key == 'description' and type(entry) == 'string' then
+        edition.description = entry :: string
+        continue
+      end
+
+      if key == 'forbid' and type(entry) == 'table' then
+        for _, word in entry :: { unknown } do
+          if type(word) == 'string' then
+            table.insert(edition.forbid, string.lower(word))
+          else
+            table.insert(problems, `{name}: 'forbid' holds words`)
+          end
+        end
+
+        continue
+      end
+
+      if not ids[key] or type(entry) ~= 'table' then
+        table.insert(problems, `{name}: '{key}' is no poster of the campaign, nor 'description' or 'forbid'`)
+        continue
+      end
+
+      local replaced: { [string]: string } = {}
+
+      for field, copy in entry :: { [string]: unknown } do
+        if not table.find(CopyFields, field) then
+          table.insert(problems, `{name}.{key}: '{field}' is not copy an edition may replace`)
+        elseif type(copy) ~= 'string' or string.match(copy :: string, '^%s*$') then
+          table.insert(problems, `{name}.{key}: '{field}' must be a string`)
+        else
+          replaced[field] = copy :: string
+        end
+      end
+
+      edition.posters[key] = replaced
+    end
+
+    editions[name] = edition
+  end
+
+  if #problems > 0 then error(`{source}:\n  {table.concat(problems, '\n  ')}`, 0) end
+
+  for _, edition in editions do
+    for _, read in Campaign.apply(campaign, edition) do
+      for _, field in CopyFields do
+        local lowered = string.lower((read :: { [string]: string })[field])
+
+        for _, word in edition.forbid do
+          if string.find(lowered, word, 1, true) then
+            table.insert(problems, `{edition.name}.{read.id}: '{field}' still says '{word}'`)
+          end
+        end
+      end
+    end
+  end
+
+  if #problems > 0 then error(`{source}:\n  {table.concat(problems, '\n  ')}`, 0) end
+
+  return editions
+end
+
+--- The campaign's posters with an edition's copy in place of theirs, or as they are.
+function Campaign.apply(campaign: Campaign, edition: Edition?): { Poster }
+  local out: { Poster } = {}
+
+  for _, read in campaign.posters do
+    local copy = table.clone(read)
+    local replaced = if edition then edition.posters[read.id] else nil
+
+    if replaced then
+      for field, text in replaced do
+        (copy :: { [string]: string })[field] = text
+      end
+    end
+
+    table.insert(out, copy)
+  end
+
+  return out
+end
+
+--- The words of a line of copy as a file name: lower case, apostrophes dropped, every other run
+--- of what isn't a letter or a digit one hyphen.
+function Campaign.slug(text: string): string
+  local lowered = string.gsub(string.lower(text), "'", '')
+  local hyphened = string.gsub(lowered, '[^%w]+', '-')
+
+  return (string.gsub(hyphened, '^%-*(.-)%-*$', '%1'))
+end
+
+return Campaign

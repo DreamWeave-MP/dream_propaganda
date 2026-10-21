@@ -1,0 +1,25 @@
+manifest_version = 1
+
+[package]
+id = "org.dreamweave.dream-propaganda"
+version = "0.1.0"
+jess_api = "1"
+include = ["src", "docs", "posters.toml", "editions.toml", "LICENSE-MIT", "LICENSE-APACHE"]
+tests = []
+
+[dependencies]
+"org.dreamweave.magick" = "0.1.3"
+"org.dreamweave.truetype" = "0.1"
+
+[modules]
+"@dream-propaganda" = "src/init.jsl"
+"@dream-propaganda/campaign" = "src/campaign.jsl"
+
+# Every module is inert API: it does nothing until something requires it, and runs with the
+# authority of whatever calls it. Drawing reads and writes nothing: its caller hands it the copy,
+# the fonts and the logo, and does what it likes with the image.
+
+[[layer]]
+id = "dream-propaganda.core"
+requires = ["org.dreamweave.magick", "truetype.core"]
+exports = ["@dream-propaganda", "@dream-propaganda/campaign"]
