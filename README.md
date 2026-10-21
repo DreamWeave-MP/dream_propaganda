@@ -14,8 +14,8 @@ and [truetype](https://dreamweave-mp.github.io/truetype/), both JSL running in J
 ## What it needs
 
 - Jess.
-- Its two dependencies, `org.dreamweave.magick` 0.1.3 and `org.dreamweave.truetype` 0.1. Until both
-  are published, name their checkouts with `--package`, as below.
+- Its two dependencies, `org.dreamweave.magick` 0.1.3 and `org.dreamweave.truetype` 0.1, which
+  `jess.lock` pins from their sites and `jess workspace sync` fetches.
 - The S3 logo and the DreamWeave logo, PNGs. Neither is in this repository; the build reads them
   from where you keep them.
 - Noto Sans and Noto Sans Mono, installed: `NotoSans-CondensedBlack.ttf`, `NotoSans-Medium.ttf`
@@ -25,10 +25,11 @@ and [truetype](https://dreamweave-mp.github.io/truetype/), both JSL running in J
 
 ## Building
 
-From this folder, with Magick and truetype checked out beside it:
+From this folder:
 
 ```sh
-jess package run --trusted --package ../magick --package ../truetype . \
+jess workspace sync --locked
+jess workspace run --trusted dream-propaganda -- \
   --logo path/to/s3logo.png --dreamweave-logo path/to/DWLogo.png
 ```
 
@@ -48,19 +49,18 @@ That builds all ten into `posters/`. The command takes:
 | `--editions PATH` | Editions from another file |
 | `--font-dir DIR` | Where the fonts are |
 
-`dream-propaganda check` reads the copy and the editions and stops there. `jess package run`
-takes its own `--help`, so the command's is `-- --help`.
+`dream-propaganda check` reads the copy and the editions and stops there, and `-- --help` lists
+the options.
 
 `--trusted` grants what the target declares, and that is all it declares: `filesystem.read` (the
 copy, the logos, the fonts), `filesystem.write` (the posters), `process.environment` (finding
 the logos without their flags), and `process.stdio`. It runs no other program and opens no connection.
 `jess package inspect .` lists them.
 
-The packed JPK builds the same bytes:
+The packed JPK, a release's archive, builds the same bytes:
 
 ```sh
-jess pack -o dream_propaganda.jpk .
-jess package run --trusted --package magick.jpk --package truetype.jpk dream_propaganda.jpk \
+jess package run --trusted --package-path .jess/packages dream_propaganda.jpk \
   --logo path/to/s3logo.png --dreamweave-logo path/to/DWLogo.png
 ```
 
@@ -93,8 +93,8 @@ copy.
 ## Testing
 
 ```sh
-jess package test --package ../magick --package ../truetype .
-jess package check --package ../magick --package ../truetype .
+jess workspace test
+jess package check --package-path .jess/packages .
 ```
 
 The suites draw with stand-in logos of their own and set copy in the installed Noto Sans.
