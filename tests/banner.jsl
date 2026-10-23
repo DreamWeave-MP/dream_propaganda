@@ -1,0 +1,119 @@
+--!strict
+-- Jess's banner: the word on the ground and nothing else, the same bytes twice, its ink inside
+-- the safe share of the canvas, and the files a build writes. The word is set in the installed
+-- Noto Sans Condensed Black, since the brand font is the user's and not every machine has it:
+-- the drawing is the same whatever the face.
+local bytes = require '@dream/bytes'
+local commands = require '@dream-propaganda/commands'
+local fs = require '@dream/fs'
+local json = require '@jess/json'
+local magick = require '@magick'
+local propaganda = require '@dream-propaganda'
+local support = require './support'
+local test = require '@jess/test'
+
+--- What the suite reads of a banner's manifest.
+type Manifest = { banner: string, size: string, colors: { background: string, ink: string }, inputs: { fonts: { { file: string, sha256: string } } }, sha256: string }
+
+local expect = test.expect
+local suite = test.new()
+
+local banner, theme = propaganda.banner, propaganda.theme
+
+--- The brand font's stand-in: the campaign's display face.
+local function font()
+  return support.assets().fonts.display
+end
+
+--- The channels a color packs to.
+local function channels(hex: string): (number, number, number)
+  local color = magick.color(hex)
+
+  return color[1], color[2], color[3]
+end
+
+suite.it('draws the word on the ground at 1280 by 640, in the brand colors alone', function()
+  local rendered = banner.render(font(), { scale = 1 })
+  local image = rendered.image
+  local backRed, backGreen, backBlue = channels(theme.Jess.background)
+  local inkRed, inkGreen, inkBlue = channels(theme.Jess.ink)
+
+  expect({ image.width, image.height }).toEqual { 1280, 640 }
+
+  for _, corner in { { 0, 0 }, { 1279, 0 }, { 0, 639 }, { 1279, 639 }, { 640, 20 }, { 640, 619 } } do
+    local red, green, blue = image:get(corner[1], corner[2])
+
+    expect({ red, green, blue }).toEqual { backRed, backGreen, backBlue }
+  end
+
+  -- Along the middle row, the letters' bodies: ink, and the ground between them, nothing else.
+  local inked, grounded = 0, 0
+
+  for column = 0, 1279 do
+    local red, green, blue = image:get(column, 320)
+
+    if red == inkRed and green == inkGreen and blue == inkBlue then inked += 1 end
+    if red == backRed and green == backGreen and blue == backBlue then grounded += 1 end
+  end
+
+  expect(inked > 100).toBe(true)
+  -- Edges blend the two; whole pixels are one or the other.
+  expect(inked + grounded > 1200).toBe(true)
+end)
+
+suite.it('keeps the word inside the safe share, centered', function()
+  local rendered = banner.render(font(), { scale = 1 })
+  local ink = rendered.ink
+  local margin = (1 - theme.Banner.safe) / 2
+
+  expect(ink.left >= 1280 * margin).toBe(true)
+  expect(ink.right <= 1280 * (1 - margin)).toBe(true)
+  expect(ink.top >= 640 * margin).toBe(true)
+  expect(ink.bottom <= 640 * (1 - margin)).toBe(true)
+  expect(math.abs((ink.left + ink.right) / 2 - 640) < 1).toBe(true)
+end)
+
+suite.it('draws the same bytes twice, and the same drawing at twice the size', function()
+  local first = magick.png(banner.render(font(), { scale = 1 }).image)
+  local second = magick.png(banner.render(font(), { scale = 1 }).image)
+  local doubled = banner.render(font(), { scale = 2 })
+
+  expect(buffer.tostring(first) == buffer.tostring(second)).toBe(true)
+  expect({ doubled.image.width, doubled.image.height }).toEqual { 2560, 1280 }
+  expect(math.abs(doubled.ink.left - banner.render(font(), { scale = 1 }).ink.left) < 1).toBe(true)
+end)
+
+suite.it('writes the banner, its alt text and its manifest, and refuses another shape', function()
+  local folder = support.scratch 'banner'
+  local fontPath = fs.join(support.FontDirectory, theme.Fonts.display)
+  local out = fs.join(folder, 'out', 'jess-github.png')
+  local made = commands.banner { font = fontPath, out = out }
+
+  expect(made.file).toBe(out)
+  expect(made.alt).toBe(fs.join(folder, 'out', 'jess-github.txt'))
+  expect(made.manifest).toBe(fs.join(folder, 'out', 'manifest.json'))
+  expect({ made.width, made.height }).toEqual { 1280, 640 }
+  expect(bytes.sha256(support.read(out))).toBe(made.sha256)
+  expect(support.read(made.alt)).toBe 'The word jess, lowercase, in purple on near-black.\n'
+
+  local manifest = (json.decode(support.read(made.manifest)) :: unknown) :: Manifest
+
+  expect(manifest.banner).toBe 'jess'
+  expect(manifest.size).toBe '1280x640'
+  expect(manifest.colors).toEqual { background = '#07060a', ink = '#cf9bff' }
+  expect(manifest.inputs.fonts[1].file).toBe(theme.Fonts.display)
+  expect(manifest.inputs.fonts[1].sha256).toBe(bytes.sha256(support.read(fontPath)))
+  expect(manifest.sha256).toBe(made.sha256)
+  -- Nothing in it says where the font was read from.
+  expect((string.find(support.read(made.manifest), support.FontDirectory, 1, true))).toBeNil()
+
+  expect(function()
+    commands.banner { font = fontPath, out = out, width = 1280, height = 720 }
+  end).toThrow "1280x720 isn't 1280x640 scaled"
+
+  expect(function()
+    commands.banner { font = fs.join(folder, 'no-such-font.ttf'), out = out }
+  end).toThrow 'no brand font at'
+end)
+
+return suite

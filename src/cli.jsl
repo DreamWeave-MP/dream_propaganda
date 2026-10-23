@@ -9,8 +9,10 @@
                    [--out-dir DIR] [--size WxH] [--edition NAME] [--debug-layout]
                    [--no-preview] [--manifest PATH] [--editions PATH] [--font-dir DIR]
   dream-propaganda check [--manifest PATH] [--editions PATH]
+  dream-propaganda banner [--out PATH] [--size WxH] [--font PATH]
 
-`build` is the default. Without --poster every poster is built. Without --logo the S3 logo is
+`build` is the default. `banner` draws jess's social preview, GitHub's 1280 by 640, in the
+brand font; without --font it reads Oxanium SemiBold from the user's installed fonts under HOME. Without --poster every poster is built. Without --logo the S3 logo is
 DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME; without --dreamweave-logo the
 DreamWeave logo is DREAM_PROPAGANDA_DREAMWEAVE_LOGO. --manifest and --editions read the copy from
 files instead of the package's own posters.toml and editions.toml.
@@ -21,23 +23,28 @@ be used, 1 when the build or check failed. Messages go to standard error as
 ]]
 local commands = require '@dream-propaganda/commands'
 local process = require '@dream/process'
+local theme = require './theme'
 
-export type Command = {
-  action: 'build' | 'check' | 'help',
-  request: commands.Request,
-}
+export type Command =
+  | { action: 'build' | 'check', request: commands.Request }
+  | { action: 'banner', request: commands.BannerRequest }
+  | { action: 'help' }
 
 local Cli = {}
 
 --- The flags that take a value.
 local Valued = { '--poster', '--logo', '--dreamweave-logo', '--out-dir', '--edition', '--manifest', '--editions', '--font-dir', '--size' }
 
+--- The banner's flags that take a value.
+local BannerValued = { '--out', '--font', '--size' }
+
 local Usage = [[
 Usage: dream-propaganda [build] [OPTIONS]
        dream-propaganda check [--manifest PATH] [--editions PATH]
+       dream-propaganda banner [--out PATH] [--size WxH] [--font PATH]
 
 Builds OPERATION: BUILD SOMETHING's posters from their copy, the S3 and DreamWeave logos, and
-installed fonts.
+installed fonts; `banner` draws jess's social preview, its name in Oxanium on near-black.
 
 Options:
   --poster ID        Build this poster (repeatable); every poster without it
@@ -54,6 +61,12 @@ Options:
   --editions PATH    Read the editions from this file instead of the package's
   --font-dir DIR     Where the Noto Sans fonts are [default: /usr/share/fonts/google-noto]
   -h, --help         Print this
+
+Banner options:
+  --out PATH         Where to write the banner PNG; its alt text and manifest go beside it
+                     [default: banners/jess-github.png]
+  --size WxH         The banner's size, 1280x640 scaled [default: 1280x640]
+  --font PATH        The Oxanium SemiBold TTF [default: ~/.local/share/fonts/Oxanium-SemiBold.ttf]
 ]]
 
 --- Where the S3 logo is when no flag says: the environment's choice, or the founder's own folder.
@@ -67,9 +80,56 @@ local function defaultLogo(environment: (string) -> string?): string?
   return `{home}/Pictures/s3logo.png`
 end
 
+--- Where the brand font is when no flag says: installed for the user, as a downloaded font is.
+local function defaultFont(environment: (string) -> string?): string?
+  local home = environment 'HOME'
+  if not home or home == '' then return nil end
+
+  return `{home}/.local/share/fonts/{theme.Fonts.brand}`
+end
+
+--- The banner an argument list asks for, or why it can't be used.
+local function parseBanner(argv: { string }, environment: (string) -> string?): (Command?, string?)
+  local request: commands.BannerRequest = { font = '', out = 'banners/jess-github.png' }
+  local index = 2
+
+  while index <= #argv do
+    local flag = argv[index]
+    local value = argv[index + 1]
+
+    if flag == '-h' or flag == '--help' then return { action = 'help' }, nil end
+
+    if value == nil and table.find(BannerValued, flag) then return nil, `{flag} needs a value` end
+
+    if flag == '--out' then
+      request.out = value
+    elseif flag == '--font' then
+      request.font = value
+    elseif flag == '--size' then
+      local width, height = string.match(value, '^(%d+)x(%d+)$')
+      if not width or not height then return nil, `--size takes WIDTHxHEIGHT, not '{value}'` end
+
+      request.width, request.height = tonumber(width), tonumber(height)
+    else
+      return nil, `unknown argument '{flag}' for banner`
+    end
+
+    index += 2
+  end
+
+  if request.font == '' then
+    local found = defaultFont(environment)
+    if not found then return nil, `no brand font: pass --font PATH, the path to {theme.Fonts.brand}` end
+
+    request.font = found
+  end
+
+  return { action = 'banner' :: 'banner', request = request }, nil
+end
+
 --- The command an argument list asks for, or why it can't be used.
 function Cli.parse(argv: { string }, environment: (string) -> string?): (Command?, string?)
-  local action: 'build' | 'check' | 'help' = 'build'
+  local action: 'build' | 'check' = 'build'
   local request: commands.Request = {
     s3Logo = '',
     dreamweaveLogo = '',
@@ -81,6 +141,8 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
   local posters: { string } = {}
   local index = 1
 
+  if argv[1] == 'banner' then return parseBanner(argv, environment) end
+
   if argv[1] == 'build' or argv[1] == 'check' then
     action = argv[1] :: 'build' | 'check'
     index = 2
@@ -91,7 +153,7 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
     local value = argv[index + 1]
     local takes = true
 
-    if flag == '-h' or flag == '--help' then return { action = 'help', request = request }, nil end
+    if flag == '-h' or flag == '--help' then return { action = 'help' }, nil end
 
     if flag == '--all' then
       takes = false
@@ -177,6 +239,8 @@ function Cli.run(argv: { string }): number
   local succeeded, outcome = pcall(function(): unknown
     if command.action == 'check' then return commands.check(command.request) end
 
+    if command.action == 'banner' then return commands.banner(command.request) end
+
     return commands.build(command.request)
   end)
 
@@ -190,6 +254,15 @@ function Cli.run(argv: { string }): number
     local checked = outcome :: commands.Checked
 
     say('stdout', `{checked.name}: {checked.posters} posters, editions: {table.concat(checked.editions, ', ')}`)
+
+    return 0
+  end
+
+  if command.action == 'banner' then
+    local made = outcome :: commands.Banner
+
+    say('stdout', `banner  {made.file}  {made.width}x{made.height}  {string.format('%.2f', made.seconds)}s`)
+    say('stdout', `manifest  {made.manifest}`)
 
     return 0
   end

@@ -2,6 +2,7 @@
 *.jpk
 /target/
 /posters/
+/banners/
 
 # Build output of the DreamWeave Mod Template
 /public/

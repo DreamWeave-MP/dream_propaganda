@@ -50,13 +50,36 @@ Theme.Safe = 72
 Theme.Columns, Theme.Gutter = 12, 24
 
 --- The installed font files each role is set in, by file name: one display family, Noto Sans
---- (its Condensed Black for headlines and calls to action, Medium for supporting copy), and one
---- monospaced family, Noto Sans Mono, for addresses and markings. Both are the SIL Open Font
---- License's; they are read where they are installed and never shipped.
+--- (its Condensed Black for headlines and calls to action, Medium for supporting copy), one
+--- monospaced family, Noto Sans Mono, for addresses and markings, and, for the banner alone,
+--- Oxanium, the face jess's site sets its name in. All are the SIL Open Font License's; they
+--- are read where they are installed and never shipped.
 Theme.Fonts = {
   display = 'NotoSans-CondensedBlack.ttf',
   support = 'NotoSans-Medium.ttf',
   mono = 'NotoSansMono-Bold.ttf',
+  brand = 'Oxanium-SemiBold.ttf',
+}
+
+--- Jess's own colors, the ones its site is drawn in (`site/sass/brand.sass` in the jess
+--- repository, its `--dw-bg-0` and `--dw-accent` tokens): a near-black with a trace of purple,
+--- and the purple its hero and links are. They are the brand's, not the campaign's, and only the
+--- banner draws them.
+Theme.Jess = {
+  background = '#07060a',
+  ink = '#cf9bff',
+}
+
+--- The banner, jess's name for a repository's social preview: GitHub's 1280 by 640, the word
+--- set in Oxanium at this size with this much tracking, as a share of the size, and its ink
+--- kept inside this much of the canvas each way, so a crop toward a squarer shape keeps it.
+Theme.Banner = {
+  width = 1280,
+  height = 640,
+  word = 'jess',
+  size = 300,
+  tracking = 0.02,
+  safe = 0.8,
 }
 
 local Voices: { [string]: Colors } = {

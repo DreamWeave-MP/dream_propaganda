@@ -5,6 +5,7 @@
   render(poster, assets, options) -> Rendered      one poster, and where everything on it went
   debug(rendered) -> Image                         the same poster with its layout drawn over it
   campaign                                         @dream-propaganda/campaign
+  banner                                           jess's own banner, its name on a social preview
 
 Each voice has its template: the founder's posters show a supplied logo, the collective's
 anonymous builders at shared work, the doctrine's a diagram. Everything is drawn from primitives,
@@ -12,6 +13,7 @@ the copy and the logos, by @magick and @truetype, so the same inputs make the sa
 Copy that doesn't fit, or anything placed outside the safe area, stops the poster rather than
 shipping it.
 ]]
+local banner = require '@self/banner'
 local campaign = require '@self/campaign'
 local canvas = require '@self/canvas'
 local collective = require '@self/templates/collective'
@@ -36,6 +38,7 @@ export type Rendered = { poster: campaign.Poster, image: magick.Image, marks: { 
 
 local Propaganda = {}
 
+Propaganda.banner = banner
 Propaganda.campaign = campaign
 Propaganda.theme = theme
 

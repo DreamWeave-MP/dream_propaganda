@@ -5,6 +5,7 @@ a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
 
   build(request) -> Build       render posters and write them, their alt text and the manifest
   check(request) -> Checked     read and validate the copy and the editions, drawing nothing
+  banner(request) -> Banner     render jess's social preview and write it, its alt text and a manifest
 
 A build reads the copy (the package's own posters.toml and editions.toml unless the request
 names others), the S3 and DreamWeave logos, and three installed fonts, and writes into its output folder, for each
@@ -13,6 +14,7 @@ every input's digest and every output's. An edition writes into a folder of its 
 output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
 a poster.
 ]]
+local banner = require './banner'
 local bytes = require '@dream/bytes'
 local campaign = require '@dream-propaganda/campaign'
 local fs = require '@dream/fs'
@@ -60,6 +62,14 @@ export type Poster = {
 export type Build = { directory: string, manifest: string, posters: { Poster } }
 
 export type Checked = { name: string, posters: number, editions: { string } }
+
+--- A banner to make: the font file to set the word in, where to write the PNG, and its size,
+--- the canonical 1280 by 640 when left out, which must keep its shape.
+export type BannerRequest = { font: string, out: string, width: number?, height: number? }
+
+--- A banner made: the PNG written, its alt text, the manifest beside them, its size, its digest
+--- and how long it took, in seconds.
+export type Banner = { file: string, alt: string, manifest: string, width: number, height: number, sha256: string, seconds: number }
 
 local Commands = {}
 
@@ -345,6 +355,77 @@ function Commands.build(request: Request): Build
   write(manifestPath, json.encodeTable(document, { indent = 2 }) .. '\n')
 
   return { directory = directory, manifest = manifestPath, posters = built }
+end
+
+--- One font by its path, and what the manifest says of it.
+local function fontAt(location: string, role: string): (truetype.Font, FontRecord)
+  if not fs.isFile(location) then
+    error(`no {role} font at {location}: install {theme.Fonts.brand}, or pass --font with the path to a TrueType font`, 0)
+  end
+
+  local data, problem = fs.readFile(location)
+  if not data then error(`can't read the font {location}: {problem}`, 0) end
+
+  local font = truetype.load(data)
+
+  return font, {
+    role = role,
+    file = fs.fileName(location) or location,
+    family = font.family,
+    subfamily = font.subfamily,
+    version = font.version,
+    sha256 = bytes.sha256(data),
+  }
+end
+
+--- Renders jess's banner and writes it, its alt text, and a manifest beside it.
+function Commands.banner(request: BannerRequest): Banner
+  local started = os.clock()
+  local width, height = request.width or theme.Banner.width, request.height or theme.Banner.height
+  local scale = width / theme.Banner.width
+
+  if width < 1 or width % 1 ~= 0 or math.floor(theme.Banner.height * scale + 0.5) ~= height then
+    error(`{width}x{height} isn't {theme.Banner.width}x{theme.Banner.height} scaled; the banner keeps GitHub's shape`, 0)
+  end
+
+  local font, record = fontAt(request.font, 'brand')
+  local rendered = banner.render(font, { scale = scale })
+  local encoded = magick.png(rendered.image)
+  local alt = 'The word jess, lowercase, in purple on near-black.'
+  local stem = string.gsub(request.out, '%.png$', '')
+  local made: Banner = {
+    file = request.out,
+    alt = `{stem}.txt`,
+    manifest = fs.join(fs.parent(request.out) or '.', 'manifest.json'),
+    width = rendered.image.width,
+    height = rendered.image.height,
+    sha256 = bytes.sha256(encoded),
+    seconds = 0,
+  }
+
+  write(made.file, encoded)
+  write(made.alt, alt .. '\n')
+
+  local document = {
+    banner = 'jess',
+    size = `{width}x{height}`,
+    renderer = renderer(),
+    colors = theme.Jess,
+    word = { text = theme.Banner.word, size = rendered.size, tracking = theme.Banner.tracking },
+    inputs = { fonts = { record } },
+    file = fs.fileName(made.file),
+    altFile = fs.fileName(made.alt),
+    alt = alt,
+    width = made.width,
+    height = made.height,
+    sha256 = made.sha256,
+  }
+
+  write(made.manifest, json.encodeTable(document, { indent = 2 }) .. '\n')
+
+  made.seconds = os.clock() - started
+
+  return made
 end
 
 return Commands

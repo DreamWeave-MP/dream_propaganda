@@ -1,0 +1,56 @@
+--!strict
+--[[
+@dream-propaganda/banner: jess's name on a social preview.
+
+  render(font, options) -> Rendered    the word on the ground, at a scale of 1280 by 640
+
+The whole design: the theme's near-black ground and the word `jess`, lowercase, set from the
+font's outlines in the site's accent, nothing else. The word is centered across on its ink and
+up and down on its x-height band, the body of the letters, so the j's dot and tail hang off the
+center instead of pushing the word up. Ink that reaches outside the safe share of the canvas is
+an error: a word that big would be cropped by the sites that show a banner squarer than GitHub
+does.
+]]
+local magick = require '@magick'
+local path = require '@magick/path'
+local theme = require './theme'
+local truetype = require '@truetype'
+
+--- How a banner is made: at a scale of the canonical 1280 by 640.
+export type Options = { scale: number }
+
+--- A drawn banner: its pixels, the size the word was set at and its ink, both in canonical
+--- coordinates.
+export type Rendered = { image: magick.Image, size: number, ink: theme.Box }
+
+local Banner = {}
+
+--- The word on the ground.
+function Banner.render(font: truetype.Font, options: Options): Rendered
+  local scale = options.scale
+  local banner, brand = theme.Banner, theme.Jess
+  local width, height = math.floor(banner.width * scale + 0.5), math.floor(banner.height * scale + 0.5)
+  local image = magick.new(width, height, brand.background)
+  local size = banner.size * scale
+  local tracking: truetype.Options = { tracking = banner.tracking * size }
+  local metrics = font:measure(banner.word, size, tracking)
+  local origin = width / 2 - (metrics.left + metrics.right) / 2
+  local baseline = height / 2 + metrics.xHeight / 2
+  local ink = theme.box((origin + metrics.left) / scale, (baseline + metrics.top) / scale, (origin + metrics.right) / scale, (baseline + metrics.bottom) / scale)
+  local margin = (1 - banner.safe) / 2
+  local left, top = banner.width * margin, banner.height * margin
+  local right, bottom = banner.width - left, banner.height - top
+
+  if ink.left < left or ink.top < top or ink.right > right or ink.bottom > bottom then
+    error(`the word reaches {math.floor(ink.left)},{math.floor(ink.top)} to {math.ceil(ink.right)},{math.ceil(ink.bottom)}, outside the safe {left},{top} to {right},{bottom}`, 0)
+  end
+
+  local shape = path.new(0.25)
+
+  font:outline(shape:pen(), banner.word, size, origin, baseline, tracking)
+  shape:fill(image, brand.ink)
+
+  return { image = image, size = banner.size, ink = ink }
+end
+
+return Banner

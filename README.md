@@ -22,6 +22,8 @@ and [truetype](https://dreamweave-mp.github.io/truetype/), both JSL running in J
   and `NotoSansMono-Bold.ttf`, looked for in `/usr/share/fonts/google-noto` (Fedora's
   `google-noto-sans-fonts` and `google-noto-sans-mono-fonts`). They're read where they're
   installed and never copied here.
+- Oxanium SemiBold, for the banner alone: `Oxanium-SemiBold.ttf` in `~/.local/share/fonts`, or
+  named with `--font`.
 
 ## Building
 
@@ -72,6 +74,24 @@ Jess's, and the SHA-256 of every input (the copy, the editions, each logo, each 
 fonts' names and versions) and every poster. It names the logos by their file names, never by
 where they were. A build of some posters keeps what an earlier build from the same inputs recorded of the
 others.
+
+## The banner
+
+`dream-propaganda banner` draws jess's social preview, the image GitHub shows for the repository:
+GitHub's 1280 by 640, the word `jess` in Oxanium SemiBold in the site's purple (`#cf9bff`) on its
+near-black (`#07060a`), and nothing else. The word is centered on the body of its letters, so the
+j's dot and tail hang off the center, and kept inside the middle four fifths of the canvas, where
+the sites that crop a preview squarer than GitHub does still show it.
+
+```sh
+jess workspace run --trusted dream-propaganda -- banner
+```
+
+That writes `banners/jess-github.png`, its alt text beside it, and `banners/manifest.json` with
+the font's digest and the PNG's. It takes `--out PATH`, `--size WxH` (1280x640 scaled), and
+`--font PATH`, the Oxanium SemiBold TTF, read from `~/.local/share/fonts` without it. The font is
+the SIL Open Font License's, read where it's installed and never shipped; the suites set the
+banner in Noto Sans instead, so a machine without Oxanium still tests it.
 
 ## The copy
 
