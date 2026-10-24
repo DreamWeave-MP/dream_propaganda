@@ -15,7 +15,9 @@
 brand font; without --font it reads Oxanium SemiBold from the user's installed fonts under HOME. Without --poster every poster is built. Without --logo the S3 logo is
 DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME; without --dreamweave-logo the
 DreamWeave logo is DREAM_PROPAGANDA_DREAMWEAVE_LOGO. --manifest and --editions read the copy from
-files instead of the package's own posters.toml and editions.toml.
+files instead of the package's own posters.toml and editions.toml. Fonts are looked for in each
+--font-dir in order, and without one in Fedora's Noto folder and then the user's own fonts under
+HOME, where a downloaded face is installed.
 
 Exit statuses: 0 when everything asked for was built or checked, 2 when the command line can't
 be used, 1 when the build or check failed. Messages go to standard error as
@@ -59,7 +61,8 @@ Options:
   --no-preview       Don't write the 360 pixel previews into DIR/preview
   --manifest PATH    Read the copy from this posters.toml instead of the package's
   --editions PATH    Read the editions from this file instead of the package's
-  --font-dir DIR     Where the Noto Sans fonts are [default: /usr/share/fonts/google-noto]
+  --font-dir DIR     A folder to look for fonts in (repeatable), in order
+                     [default: /usr/share/fonts/google-noto, then ~/.local/share/fonts]
   -h, --help         Print this
 
 Banner options:
@@ -80,12 +83,23 @@ local function defaultLogo(environment: (string) -> string?): string?
   return `{home}/Pictures/s3logo.png`
 end
 
---- Where the brand font is when no flag says: installed for the user, as a downloaded font is.
-local function defaultFont(environment: (string) -> string?): string?
+--- Where Fedora installs the Noto fonts.
+local NotoDirectory = '/usr/share/fonts/google-noto'
+
+--- Where the user's own fonts are installed, as a downloaded face is, or nothing without a home.
+local function userFontDirectory(environment: (string) -> string?): string?
   local home = environment 'HOME'
   if not home or home == '' then return nil end
 
-  return `{home}/.local/share/fonts/{theme.Fonts.brand}`
+  return `{home}/.local/share/fonts`
+end
+
+--- Where the brand font is when no flag says: installed for the user.
+local function defaultFont(environment: (string) -> string?): string?
+  local directory = userFontDirectory(environment)
+  if not directory then return nil end
+
+  return `{directory}/{theme.Fonts.brand}`
 end
 
 --- The banner an argument list asks for, or why it can't be used.
@@ -133,7 +147,7 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
   local request: commands.Request = {
     s3Logo = '',
     dreamweaveLogo = '',
-    fontDirectory = '/usr/share/fonts/google-noto',
+    fontDirectories = {},
     outDirectory = 'posters',
     debug = false,
     previews = true,
@@ -178,7 +192,7 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
     elseif flag == '--editions' then
       request.editions = value
     elseif flag == '--font-dir' then
-      request.fontDirectory = value
+      table.insert(request.fontDirectories, value)
     elseif flag == '--size' then
       local width, height = string.match(value, '^(%d+)x(%d+)$')
       if not width or not height then return nil, `--size takes WIDTHxHEIGHT, not '{value}'` end
@@ -192,6 +206,12 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
   end
 
   if #posters > 0 then request.posters = posters end
+
+  if #request.fontDirectories == 0 then
+    local user = userFontDirectory(environment)
+
+    request.fontDirectories = if user then { NotoDirectory, user } else { NotoDirectory }
+  end
 
   if action == 'build' and request.s3Logo == '' then
     local found = defaultLogo(environment)

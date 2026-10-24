@@ -8,10 +8,10 @@ a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
   banner(request) -> Banner     render jess's social preview and write it, its alt text and a manifest
 
 A build reads the copy (the package's own posters.toml and editions.toml unless the request
-names others), the S3 and DreamWeave logos, and three installed fonts, and writes into its output folder, for each
-poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the alt text), and `manifest.json`, which records
-every input's digest and every output's. An edition writes into a folder of its name inside the
-output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
+names others), the S3 and DreamWeave logos, and three installed fonts, each looked for in the
+request's font folders in order, and writes into its output folder, for each poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the
+alt text), and `manifest.json`, which records every input's digest and every output's. An
+edition writes into a folder of its name inside the output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
 a poster.
 ]]
 local banner = require './banner'
@@ -28,14 +28,14 @@ local truetype = require '@truetype'
 --- What to build. `copy` and `editions` are paths to read instead of the package's own files;
 --- `posters` are ids, all of them when left out; `width` and `height` are the posters' size, the
 --- canonical 1200 by 1800 when left out, and must keep its shape. `s3Logo` and `dreamweaveLogo`
---- are the two logos' PNGs.
+--- are the two logos' PNGs; `fontDirectories` are the folders a font is looked for in, in order.
 export type Request = {
   copy: string?,
   editions: string?,
   edition: string?,
   s3Logo: string,
   dreamweaveLogo: string,
-  fontDirectory: string,
+  fontDirectories: { string },
   posters: { string }?,
   outDirectory: string,
   width: number?,
@@ -130,17 +130,27 @@ end
 --- A font's record for the manifest.
 type FontRecord = { role: string, file: string, family: string, subfamily: string, version: string, sha256: string }
 
---- The three fonts by role, and what the manifest says of them.
-local function fontsIn(directory: string): ({ [string]: truetype.Font }, { FontRecord })
-  local loaded: { [string]: truetype.Font } = {}
-  local records: { FontRecord } = {}
-
-  for _, role in { 'display', 'support', 'mono' } do
-    local file = (theme.Fonts :: { [string]: string })[role]
+--- The file at a name in the first of the folders that has it, or nothing.
+local function findIn(directories: { string }, file: string): string?
+  for _, directory in directories do
     local path = fs.join(directory, file)
 
-    if not fs.isFile(path) then
-      error(`the {role} font {file} isn't in {directory}: install Noto Sans and Noto Sans Mono, or pass --font-dir`, 0)
+    if fs.isFile(path) then return path end
+  end
+
+  return nil
+end
+
+--- The three fonts by role, and what the manifest says of them.
+local function fontsIn(directories: { string }): ({ [string]: truetype.Font }, { FontRecord })
+  local loaded: { [string]: truetype.Font } = {}
+  local records: { FontRecord } = {}
+  for _, role in { 'display', 'support', 'mono' } do
+    local file = (theme.Fonts :: { [string]: string })[role]
+    local path = findIn(directories, file)
+
+    if not path then
+      error(`the {role} font {file} isn't in {table.concat(directories, ', ')}: install it, or pass --font-dir with its folder`, 0)
     end
 
     local data, problem = fs.readFile(path)
@@ -215,7 +225,7 @@ function Commands.build(request: Request): Build
   local scale = scaleOf(request)
   local s3Data, s3 = logoAt(request.s3Logo, 'S3', '--logo')
   local dreamweaveData, dreamweave = logoAt(request.dreamweaveLogo, 'DreamWeave', '--dreamweave-logo')
-  local fonts, fontRecords = fontsIn(request.fontDirectory)
+  local fonts, fontRecords = fontsIn(request.fontDirectories)
   local assets: propaganda.Assets = {
     fonts = { display = fonts.display, support = fonts.support, mono = fonts.mono },
     s3 = s3,

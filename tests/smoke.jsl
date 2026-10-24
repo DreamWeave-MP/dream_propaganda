@@ -30,7 +30,7 @@ local function request(folder: string, posters: { string }?): commands.Request
   return {
     s3Logo = s3,
     dreamweaveLogo = dreamweave,
-    fontDirectory = support.FontDirectory,
+    fontDirectories = { support.FontDirectory },
     posters = posters,
     outDirectory = fs.join(folder, 'out'),
     debug = true,
@@ -102,6 +102,25 @@ suite.it('builds an edition into a folder of its name', function()
 
   expect(built.directory).toBe(fs.join(folder, 'out', 'safe'))
   expect(built.posters[1].file).toBe 'P05-tired-of-the-same-old-walls.png'
+end)
+
+suite.it('looks for each font in the folders in order, and says where it looked for one it lacks', function()
+  local folder = support.scratch 'fonts'
+  local empty = fs.join(folder, 'no-fonts')
+  local made, problem = fs.mkdir(empty, { recursive = true })
+  if not made then error(problem, 0) end
+
+  local asked = request(folder, { 'P09' })
+
+  asked.fontDirectories = { empty, support.FontDirectory }
+
+  expect(commands.build(asked).posters[1].file).toBe 'P09-one-runtime.png'
+
+  asked.fontDirectories = { empty }
+
+  expect(function()
+    commands.build(asked)
+  end).toThrow(`the display font NotoSans-CondensedBlack.ttf isn't in {empty}: install it, or pass --font-dir with its folder`)
 end)
 
 suite.it('refuses a missing logo, either of them, and writes nothing in its place', function()
