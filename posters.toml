@@ -2,6 +2,13 @@ campaign = "OPERATION: BUILD SOMETHING"
 version = 1
 base_url = "https://dreamweave-mp.github.io/jess/"
 
+# The first wave's shape: one founder, since first-person copy stands only beside the founder's
+# own mark, five collective, four doctrine.
+[wave]
+founder = 1
+collective = 5
+doctrine = 4
+
 [[poster]]
 id = "P01"
 voice = "founder"

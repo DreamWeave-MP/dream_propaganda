@@ -77,6 +77,11 @@ suite.describe('posters.toml', function()
     expect(support.campaign().posters[2].footer).toBe 'DREAMWEAVE // SHARED FOUNDATIONS. INDEPENDENT CREATION.'
   end)
 
+  suite.it('declares its wave, and the decoder holds it to it', function()
+    expect(support.campaign().wave).toEqual { founder = 1, collective = 5, doctrine = 4 }
+    expect(support.campaign().display).toBeNil()
+  end)
+
   suite.it('sends every poster somewhere real', function()
     for _, poster in support.campaign().posters do
       expect(poster.destination).toBe 'https://dreamweave-mp.github.io/jess/'
@@ -133,6 +138,22 @@ suite.describe('refusals', function()
     expect(function()
       campaign.decode(text, 'posters.toml')
     end).toThrow 'the wave has 5 collective posters, not 6'
+  end)
+
+  suite.it('refuses a wave naming a voice nobody speaks, or a count that is no whole number', function()
+    expect(function()
+      campaign.decode(changed('doctrine = 4', 'doctrine = 4\nsermon = 1'), 'posters.toml')
+    end).toThrow "wave: unknown voice 'sermon'"
+
+    expect(function()
+      campaign.decode(changed('doctrine = 4', 'doctrine = 4.5'), 'posters.toml')
+    end).toThrow "wave: 'doctrine' must be a whole number"
+  end)
+
+  suite.it('refuses a display face that is not the file name of a TrueType font', function()
+    expect(function()
+      campaign.decode(changed('version = 1', 'version = 1\ndisplay = "fonts/Face.otf"'), 'posters.toml')
+    end).toThrow "'display' must be the file name of a TrueType font"
   end)
 
   suite.it('reports every problem at once', function()

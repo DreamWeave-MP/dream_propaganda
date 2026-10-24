@@ -9,7 +9,8 @@ a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
 
 A build reads the copy (the package's own posters.toml and editions.toml unless the request
 names others), the S3 and DreamWeave logos, and three installed fonts, each looked for in the
-request's font folders in order, and writes into its output folder, for each poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the
+request's font folders in order (the campaign's own display face among them, when it names one),
+and writes into its output folder, for each poster, `<id>-<slug>.png` and `<id>-<slug>.txt` (the
 alt text), and `manifest.json`, which records every input's digest and every output's. An
 edition writes into a folder of its name inside the output folder. Previews 360 pixels wide go into `preview/`, layout views into `debug/`; neither is
 a poster.
@@ -141,12 +142,17 @@ local function findIn(directories: { string }, file: string): string?
   return nil
 end
 
---- The three fonts by role, and what the manifest says of them.
-local function fontsIn(directories: { string }): ({ [string]: truetype.Font }, { FontRecord })
+--- The three fonts by role, the display face the campaign's own when it names one, and what the
+--- manifest says of them.
+local function fontsIn(directories: { string }, display: string?): ({ [string]: truetype.Font }, { FontRecord })
   local loaded: { [string]: truetype.Font } = {}
   local records: { FontRecord } = {}
+  local files = table.clone(theme.Fonts)
+
+  files.display = display or files.display
+
   for _, role in { 'display', 'support', 'mono' } do
-    local file = (theme.Fonts :: { [string]: string })[role]
+    local file = (files :: { [string]: string })[role]
     local path = findIn(directories, file)
 
     if not path then
@@ -225,7 +231,7 @@ function Commands.build(request: Request): Build
   local scale = scaleOf(request)
   local s3Data, s3 = logoAt(request.s3Logo, 'S3', '--logo')
   local dreamweaveData, dreamweave = logoAt(request.dreamweaveLogo, 'DreamWeave', '--dreamweave-logo')
-  local fonts, fontRecords = fontsIn(request.fontDirectories)
+  local fonts, fontRecords = fontsIn(request.fontDirectories, read.display)
   local assets: propaganda.Assets = {
     fonts = { display = fonts.display, support = fonts.support, mono = fonts.mono },
     s3 = s3,

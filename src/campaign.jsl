@@ -10,6 +10,10 @@
 The copy is the source of truth: nothing here rewrites a word of it. A field that is missing, a
 key nobody reads, a voice drawn with the wrong template or a destination that isn't a URL stops
 the build before anything is drawn.
+
+A campaign file may say two things about how it is drawn, and no more: `display`, the file name
+of the face its headlines and calls to action are set in, in place of the theme's; and `[wave]`,
+how many posters of each voice it holds, for a campaign whose shape is part of its design.
 ]]
 local toml = require '@jess/data/toml'
 
@@ -32,7 +36,16 @@ export type Poster = {
   alt: string,
 }
 
-export type Campaign = { name: string, version: number, baseUrl: string, posters: { Poster } }
+--- A campaign: its name, its copy, and, when it says so, the display face it is set in and the
+--- wave it holds.
+export type Campaign = {
+  name: string,
+  version: number,
+  baseUrl: string,
+  display: string?,
+  wave: { [string]: number }?,
+  posters: { Poster },
+}
 
 --- Copy that replaces a poster's, field by field, and the words none of an edition's copy may
 --- hold.
@@ -58,9 +71,12 @@ local Templates: { [string]: { template: string, subjects: { string } } } = {
   },
 }
 
---- How many posters of each voice the first wave holds. First-person copy stands only beside the
---- founder's own mark, so the founder speaks on one poster.
-local Wave: { [string]: number } = { founder = 1, collective = 5, doctrine = 4 }
+--- The keys a campaign file may have besides its posters.
+local Keys = { 'campaign', 'version', 'base_url', 'display', 'wave', 'poster' }
+
+--- First-person copy stands only beside the founder's own mark, so the founder speaks on one
+--- poster of a campaign at most, whatever its wave.
+local FounderMost = 1
 
 --- A poster's fields, in the order posters.toml writes them. Every one is required but the
 --- supporting line: a poster whose copy says enough without one leaves it out.
@@ -162,9 +178,7 @@ function Campaign.decode(text: string, source: string): Campaign
   local problems: { string } = {}
 
   for key in document do
-    if key ~= 'campaign' and key ~= 'version' and key ~= 'base_url' and key ~= 'poster' then
-      table.insert(problems, `unknown key '{key}'`)
-    end
+    if not table.find(Keys, key) then table.insert(problems, `unknown key '{key}'`) end
   end
 
   if type(document.campaign) ~= 'string' then table.insert(problems, "'campaign' must be a string") end
@@ -172,6 +186,34 @@ function Campaign.decode(text: string, source: string): Campaign
 
   if type(document.base_url) ~= 'string' or not isUrl(document.base_url :: string) then
     table.insert(problems, "'base_url' must be a URL")
+  end
+
+  local display = document.display
+
+  if display ~= nil and (type(display) ~= 'string' or not string.match(display :: string, '^[^/\\]+%.[tT][tT][fF]$')) then
+    table.insert(problems, "'display' must be the file name of a TrueType font")
+  end
+
+  local wave: { [string]: number }? = nil
+
+  if document.wave ~= nil then
+    if type(document.wave) ~= 'table' then
+      table.insert(problems, "'wave' must be a table of voices and counts")
+    else
+      local counts: { [string]: number } = {}
+
+      for voice, count in document.wave :: { [string]: unknown } do
+        if not Templates[voice] then
+          table.insert(problems, `wave: unknown voice '{voice}'`)
+        elseif type(count) ~= 'number' or count < 0 or count % 1 ~= 0 then
+          table.insert(problems, `wave: '{voice}' must be a whole number`)
+        else
+          counts[voice] = count :: number
+        end
+      end
+
+      wave = counts
+    end
   end
 
   local posters: { Poster } = {}
@@ -198,13 +240,25 @@ function Campaign.decode(text: string, source: string): Campaign
   end
 
   if #problems == 0 then
-    for voice, wanted in Wave do
-      local found = voices[voice] or 0
+    local count = #posters
 
-      if found ~= wanted then table.insert(problems, `the wave has {wanted} {voice} posters, not {found}`) end
+    if wave then
+      count = 0
+
+      for voice in Templates do
+        local wanted = wave[voice] or 0
+        local found = voices[voice] or 0
+
+        count += wanted
+
+        if found ~= wanted then table.insert(problems, `the wave has {wanted} {voice} posters, not {found}`) end
+      end
+    elseif (voices.founder or 0) > FounderMost then
+      table.insert(problems, `the founder speaks on {voices.founder} posters; first-person copy stands beside the founder's mark on one`)
     end
 
-    for number = 1, 10 do
+    -- Posters are numbered from P01 without a gap, however many there are.
+    for number = 1, count do
       local id = string.format('P%02d', number)
 
       if not seen[id] then table.insert(problems, `poster {id} is missing`) end
@@ -221,6 +275,8 @@ function Campaign.decode(text: string, source: string): Campaign
     name = document.campaign :: string,
     version = document.version :: number,
     baseUrl = document.base_url :: string,
+    display = display :: string?,
+    wave = wave,
     posters = posters,
   }
 end

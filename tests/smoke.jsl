@@ -123,6 +123,25 @@ suite.it('looks for each font in the folders in order, and says where it looked 
   end).toThrow(`the display font NotoSans-CondensedBlack.ttf isn't in {empty}: install it, or pass --font-dir with its folder`)
 end)
 
+suite.it('sets the display face a campaign names, and records it', function()
+  local folder = support.scratch 'display'
+  local copyPath = fs.join(folder, 'posters.toml')
+  local copy = support.read(fs.join(support.root(), 'posters.toml'))
+  -- The copy as committed, its display face one every machine with Noto Sans has.
+  local written, problem = fs.writeFile(copyPath, (string.gsub(copy, 'version = 1\n', 'version = 1\ndisplay = "NotoSans-Medium.ttf"\n')))
+  if not written then error(problem, 0) end
+
+  local asked = request(folder, { 'P09' })
+
+  asked.copy = copyPath
+
+  local built = commands.build(asked)
+  local manifest = (json.decode(contents(built.manifest)) :: unknown) :: Manifest
+  local fonts = manifest.inputs.fonts :: { { role: string, file: string } }
+
+  expect({ fonts[1].role, fonts[1].file }).toEqual { 'display', 'NotoSans-Medium.ttf' }
+end)
+
 suite.it('refuses a missing logo, either of them, and writes nothing in its place', function()
   local folder = support.scratch 'missing'
   local asked = request(folder)
