@@ -1,0 +1,21 @@
+# The DreamWind announcement: one poster, in the doctrine's voice, its headline set in Mystic
+# Cards, the face OpenMW draws Morrowind's interface in (Isak Larborn's, SIL Open Font License,
+# read where it is installed). The copy turns the game's first words on the tools that have been
+# waiting for its modders.
+campaign = "DREAMWIND"
+version = 1
+base_url = "https://dreamweave-mp.github.io/dreamwind/"
+display = "MysticCards.ttf"
+
+[[poster]]
+id = "P01"
+voice = "doctrine"
+template = "doctrine-diagram"
+subject = "one-dependency"
+headline = "YOU WERE DREAMING."
+subheadline = "WAKE UP."
+support = "Plugins, saves, models, archives, config, load orders.\nEvery tool a package. One line takes them all."
+cta = "GET OFF THE BOAT."
+destination = "https://dreamweave-mp.github.io/dreamwind/"
+footer = "DREAMWIND // THE MORROWIND AND OPENMW TOOLBENCH ON JESS"
+alt = "The DreamWind announcement poster. In a Morrowind-styled face: You were dreaming. Wake up. Below, a jess.toml window adding one dependency, org.dreamweave.dreamwind, and the call: Get off the boat."

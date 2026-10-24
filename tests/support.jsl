@@ -92,6 +92,23 @@ function Support.editions(): { [string]: propaganda.Edition }
   return propaganda.campaign.decodeEditions(text, Support.campaign(), 'editions.toml')
 end
 
+--- The DreamWind campaign's files.
+Support.DreamWind = 'campaigns/dreamwind'
+
+--- The DreamWind announcement's copy, decoded.
+function Support.dreamwind(): propaganda.Campaign
+  local path = fs.join(Support.root(), Support.DreamWind, 'posters.toml')
+
+  return propaganda.campaign.decode(Support.read(path), path)
+end
+
+--- The DreamWind announcement's editions, decoded.
+function Support.dreamwindEditions(): { [string]: propaganda.Edition }
+  local path = fs.join(Support.root(), Support.DreamWind, 'editions.toml')
+
+  return propaganda.campaign.decodeEditions(Support.read(path), Support.dreamwind(), path)
+end
+
 --- A scratch folder under the package's target/, emptied.
 function Support.scratch(name: string): string
   local folder = fs.join(Support.root(), 'target', 'tests', name)

@@ -167,6 +167,24 @@ suite.describe('posters', function()
     end).toThrow "P01 headline \"I WANT YOU TO READ THIS VERY LONG HEADLINE THAT NO POSTER COULD EVER HOLD\" doesn't fit"
   end)
 
+  suite.it('draws the DreamWind announcement inside the safe area', function()
+    for _, poster in support.dreamwind().posters do
+      local rendered = propaganda.render(poster, support.assets())
+      local labels = [for mark in rendered.marks => mark.label]
+
+      for _, mark in rendered.marks do
+        local box = mark.box
+
+        expect(box.left >= theme.Safe - 0.5 and box.top >= theme.Safe - 0.5).toBe(true)
+        expect(box.right <= theme.Width - theme.Safe + 0.5 and box.bottom <= theme.Height - theme.Safe + 0.5).toBe(true)
+      end
+
+      expect(labels).toContain 'one-dependency'
+      expect(labels).toContain 'version'
+      expect(labels).toContain 'DreamWeave signature'
+    end
+  end)
+
   suite.it('draws at another size of the same shape', function()
     local rendered = propaganda.render(support.campaign().posters[3], support.assets(), { scale = 0.5 })
 

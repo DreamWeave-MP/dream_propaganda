@@ -167,6 +167,62 @@ suite.describe('refusals', function()
   end)
 end)
 
+suite.describe('campaigns/dreamwind', function()
+  --- The announcement's copy with one piece of text replaced, once.
+  local function dreamwindChanged(from: string, to: string): string
+    local text = support.read(fs.join(support.root(), support.DreamWind, 'posters.toml'))
+    local first, last = string.find(text, from, 1, true)
+
+    assert(first and last, `the DreamWind copy has no {from}`)
+
+    return string.sub(text, 1, first - 1) .. to .. string.sub(text, last + 1)
+  end
+
+  suite.it('is one doctrine poster, set in Mystic Cards, sent to DreamWind', function()
+    local read = support.dreamwind()
+    local poster = read.posters[1]
+
+    expect(read.name).toBe 'DREAMWIND'
+    expect(read.display).toBe 'MysticCards.ttf'
+    expect(read.wave).toBeNil()
+    expect(#read.posters).toBe(1)
+    expect({ poster.id, poster.voice, poster.template, poster.subject }).toEqual { 'P01', 'doctrine', 'doctrine-diagram', 'one-dependency' }
+    expect(poster.headline).toBe 'YOU WERE DREAMING.'
+    expect(poster.destination).toBe 'https://dreamweave-mp.github.io/dreamwind/'
+    expect((string.find(poster.footer, 'S3KSHUN8', 1, true))).toBeNil()
+  end)
+
+  suite.it('swears nowhere, so it has no editions', function()
+    local poster = support.dreamwind().posters[1]
+
+    expect(poster.cta).toBe 'GET OFF THE BOAT.'
+
+    for _, field in { poster.headline, poster.subheadline, poster.support or '', poster.cta, poster.footer, poster.alt } do
+      expect((string.find(string.lower(field), 'fuck', 1, true))).toBeNil()
+    end
+
+    expect(support.dreamwindEditions()).toEqual {}
+  end)
+
+  suite.it('may be any size without a wave, numbered from P01, with the founder on one poster at most', function()
+    local one = dreamwindChanged('id = "P01"', 'id = "P02"')
+
+    expect(function()
+      campaign.decode(one, 'posters.toml')
+    end).toThrow 'poster P01 is missing'
+
+    local founder = 'voice = "founder"\ntemplate = "founder-emblem"\nsubject = "s3-logo"'
+    local poster = string.match(support.read(fs.join(support.root(), support.DreamWind, 'posters.toml')), '%[%[poster%]%].*$') :: string
+    local twice = dreamwindChanged('voice = "doctrine"\ntemplate = "doctrine-diagram"\nsubject = "one-dependency"', founder)
+      .. '\n'
+      .. string.gsub(string.gsub(poster, 'id = "P01"', 'id = "P02"'), 'voice = "doctrine"\ntemplate = "doctrine%-diagram"\nsubject = "one%-dependency"', founder)
+
+    expect(function()
+      campaign.decode(twice, 'posters.toml')
+    end).toThrow "the founder speaks on 2 posters; first-person copy stands beside the founder's mark on one"
+  end)
+end)
+
 suite.describe('editions', function()
   suite.it('reads the safe and newcomer editions', function()
     local editions = support.editions()

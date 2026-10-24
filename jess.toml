@@ -5,7 +5,7 @@ id = "org.dreamweave.dream-propaganda"
 version = "0.1.0"
 jess_api = "1"
 default_target = "dream-propaganda"
-include = ["src", "tests", "docs", "posters.toml", "editions.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src", "tests", "docs", "campaigns", "posters.toml", "editions.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
 tests = ["tests/campaign.jsl", "tests/layout.jsl", "tests/determinism.jsl", "tests/banner.jsl", "tests/smoke.jsl", "tests/style.jsl"]
 
 [dependencies]
