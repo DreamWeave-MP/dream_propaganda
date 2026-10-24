@@ -150,6 +150,57 @@ Diagrams['single-script'] = function(surface: canvas.Canvas, assets: common.Asse
   return 6
 end
 
+-- One dependency, declared: a window named jess.toml, the table a dependency goes in, and the one
+-- line that adds the package, its version the only color on it. The line is the real one.
+Diagrams['one-dependency'] = function(surface: canvas.Canvas, assets: common.Assets): number
+  local box = theme.box(150, 660, 1050, 1100)
+  local bar = 74
+
+  canvas.fill(surface, canvas.path(surface):roundRect(box.left, box.top, box.right, box.top + bar, 14), Palette.violet)
+  canvas.rect(surface, box.left, box.top + bar - 14, box.right, box.top + bar, Palette.violet)
+  canvas.fill(surface, canvas.path(surface):frame(box.left, box.top + bar - 2, box.right, box.bottom, 5), Palette.violet)
+  label(surface, assets, 'jess.toml', theme.box(box.left, box.top + 18, box.right, box.top + bar - 18), 34, Palette.pinkwhite)
+
+  local style: text.Style = {
+    font = assets.fonts.mono,
+    least = 30,
+    most = 40,
+    lines = 1,
+    leading = 1,
+    tracking = 0,
+    align = 'left',
+  }
+  local inside = theme.box(box.left + 56, box.top + 150, box.right - 56, box.top + 210)
+  local section = text.fit('[dependencies]', inside, style, 'table')
+  local lineTop = section.ink.bottom + 44
+  local lineBox = theme.box(inside.left, lineTop, inside.right, lineTop + 60)
+  -- The line is sized whole, then set in two colors: the version follows where the pen stops
+  -- after the space, not where the ink does.
+  local whole = text.fit('"org.dreamweave.dreamwind" = "0.3"', lineBox, style, 'dependency')
+  local fixed: text.Style = table.clone(style)
+
+  fixed.least, fixed.most = whole.size, whole.size
+
+  local name = text.fit('"org.dreamweave.dreamwind" = ', lineBox, fixed, 'dependency')
+  local mono = assets.fonts.mono
+  local penStop = name.lines[1].origin + mono:measure(name.text, name.size, {}).width
+  local versionLeft = penStop + mono:measure('"0.3"', name.size, {}).left
+  local version = text.fit('"0.3"', theme.box(versionLeft, lineTop, inside.right, lineTop + 60), fixed, 'version')
+
+  canvas.text(surface, section, Palette.orchid, 'table')
+  canvas.text(surface, name, Palette.body, 'dependency')
+  canvas.text(surface, version, Palette.amber, 'version')
+
+  local cursorLeft = inside.left
+  local cursorTop = name.ink.bottom + 60
+
+  canvas.rect(surface, cursorLeft, cursorTop, cursorLeft + 28, cursorTop + 52, Palette.lavender)
+  canvas.mark(surface, 'figure', 'one-dependency', box)
+
+  -- The title bar, the frame, the name, the table, the dependency, its version, the cursor.
+  return 7
+end
+
 function Doctrine.draw(surface: canvas.Canvas, poster: campaign.Poster, assets: common.Assets): number
   local zones = theme.Zones['doctrine-diagram']
   local diagram = Diagrams[poster.subject]

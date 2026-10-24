@@ -67,7 +67,7 @@ local Templates: { [string]: { template: string, subjects: { string } } } = {
   },
   doctrine = {
     template = 'doctrine-diagram',
-    subjects = { 'measurement-bars', 'inheritance-blocks', 'runtime-stack', 'single-script' },
+    subjects = { 'measurement-bars', 'inheritance-blocks', 'runtime-stack', 'single-script', 'one-dependency' },
   },
 }
 
