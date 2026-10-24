@@ -45,6 +45,9 @@ The finished result must be an unmistakably original *DreamWeave software-develo
 - Small, consistent provenance/footer markings.
 - No flags, military uniforms, faux government seals, political-party marks, or implied real-government endorsement.
 
+A campaign for one project may be one poster. It keeps every rule here but the first wave's
+shape; its founder-address count is still at most one.
+
 **Explicitly avoid** nebula skies, planets, enormous crowds, complex architecture, detailed facial art, photorealistic characters, cinematic effects, excessive distress/grain, and overly intricate typography. If Magick cannot create the object from clean shapes and the supplied logos, simplify it.
 
 ## 4. Color — the authoritative S3 palette
@@ -130,6 +133,13 @@ Layouts may be adjusted for text length, but the safe inset, clear hierarchy, an
 - **Supporting:** readable sans serif in mixed case.
 - **Metadata:** monospaced for identifiers/URLs and tiny doctrinal signatures; never use a 1980s “military” gimmick font merely for theme.
 - **One display family + one supporting/mono family** maximum unless demonstrated necessary.
+- **A themed campaign may bring its own display face**, declared in its campaign file (`display`)
+  and used for every display role on its posters: headline, subheadline, call to action. The
+  supporting and monospaced faces don't change, and nothing else about the layout does. The face
+  must be free to use (the SIL Open Font License, say), read where it is installed and never
+  shipped, and recorded in the build's manifest like any other font. The DreamWind announcement
+  sets its type in Mystic Cards, the face OpenMW draws Morrowind's interface in: the theme is the
+  typeface, not borrowed artwork.
 
 Do not rasterize text as an uneditable fixed image upstream. Render source strings from the font's own outlines, read by truetype and filled by Magick. Define font size per text box and **fit from a bounded set of sizes**, failing if a string cannot fit at its minimum size. Avoid auto-shrinking until unreadable.
 

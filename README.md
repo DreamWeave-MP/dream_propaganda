@@ -24,6 +24,12 @@ and [truetype](https://dreamweave-mp.github.io/truetype/), both JSL running in J
   installed and never copied here.
 - Oxanium SemiBold, for the banner alone: `Oxanium-SemiBold.ttf` in `~/.local/share/fonts`, or
   named with `--font`.
+- Mystic Cards, for the DreamWind announcement alone: `MysticCards.ttf` in `~/.local/share/fonts`.
+  It is the face OpenMW draws Morrowind's interface in, Isak Larborn's under the SIL Open Font
+  License, shipped in OpenMW's `files/data/fonts`; copy it from there, with its license beside it.
+
+Fonts are looked for in each `--font-dir` in order, and without one in the Noto folder and then
+`~/.local/share/fonts`. They're read where they're installed and never copied here.
 
 ## Building
 
@@ -49,7 +55,7 @@ That builds all ten into `posters/`. The command takes:
 | `--no-preview` | Skip the 360 pixel previews in `DIR/preview` |
 | `--manifest PATH` | Copy from another `posters.toml` |
 | `--editions PATH` | Editions from another file |
-| `--font-dir DIR` | Where the fonts are |
+| `--font-dir DIR` | A folder to look for fonts in (repeatable), in order |
 
 `dream-propaganda check` reads the copy and the editions and stops there, and `-- --help` lists
 the options.
@@ -74,6 +80,27 @@ Jess's, and the SHA-256 of every input (the copy, the editions, each logo, each 
 fonts' names and versions) and every poster. It names the logos by their file names, never by
 where they were. A build of some posters keeps what an earlier build from the same inputs recorded of the
 others.
+
+## The DreamWind announcement
+
+`campaigns/dreamwind/` is a second campaign: one doctrine poster announcing DreamWind, the
+Morrowind and OpenMW toolbench on Jess, its headline and call to action set in Mystic Cards over
+the one line of `jess.toml` that takes the whole toolbench. Its copy is a file of the same shape
+as the first campaign's, built the same way, into its own folder; it swears nowhere, so its
+editions file is empty:
+
+```sh
+jess workspace run --trusted dream-propaganda -- \
+  --manifest campaigns/dreamwind/posters.toml --editions campaigns/dreamwind/editions.toml \
+  --out-dir posters/dreamwind --logo path/to/s3logo.png --dreamweave-logo path/to/DWLogo.png
+```
+
+A campaign file may say two things about how it is drawn, and no more. `display` names the file
+of the face its headlines, subheadlines and calls to action are set in, in place of Noto Sans
+Condensed Black; the supporting and monospaced faces stay. `[wave]` says how many posters of each
+voice it holds, when its shape is part of its design, as the first campaign's ten are; without one
+a campaign is as long as its copy, numbered from `P01` without a gap, and gives the founder one
+poster at most, since first-person copy stands only beside the founder's own mark.
 
 ## The banner
 
@@ -100,8 +127,8 @@ doesn't fit its box at its smallest size stops the build with what it measured, 
 anything that would land outside the 72 pixel safe area. Each voice has its template:
 `founder-emblem` (the S3 logo as the hero, the headline over it and the mission under it), `collective-builders` (anonymous builders at shared
 work, at most 25 primitives), and `doctrine-diagram` (type over a diagram). The copy is checked
-before anything is drawn: ten posters, one founder, five collective, four doctrine, every field
-there, every voice drawn by its own template, every destination a URL.
+before anything is drawn: the wave it declares (ten posters, one founder, five collective, four
+doctrine), every field there, every voice drawn by its own template, every destination a URL.
 
 `editions.toml` holds editions, copy replaced field by field for other venues: `safe` swaps the
 calls to action and the headline that swear for the alternates the campaign documents give, and
