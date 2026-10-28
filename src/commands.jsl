@@ -6,6 +6,7 @@ a GUI, or a test to call alike. Nothing here reads arguments, prints, or exits.
   build(request) -> Build       render posters and write them, their alt text and the manifest
   check(request) -> Checked     read and validate the copy and the editions, drawing nothing
   banner(request) -> Banner     render jess's social preview and write it, its alt text and a manifest
+  cover(request) -> Cover       render jess's article cover and write it, its alt text and a manifest
 
 A build reads the copy (the package's own posters.toml and editions.toml unless the request
 names others), the S3 and DreamWeave logos, and three installed fonts, each looked for in the
@@ -18,6 +19,7 @@ a poster.
 local banner = require './banner'
 local bytes = require '@dream/bytes'
 local campaign = require '@dream-propaganda/campaign'
+local cover = require './cover'
 local fs = require '@dream/fs'
 local json = require '@jess/json'
 local magick = require '@magick'
@@ -71,6 +73,14 @@ export type BannerRequest = { font: string, out: string, width: number?, height:
 --- A banner made: the PNG written, its alt text, the manifest beside them, its size, its digest
 --- and how long it took, in seconds.
 export type Banner = { file: string, alt: string, manifest: string, width: number, height: number, sha256: string, seconds: number }
+
+--- A cover to make: the folders its three campaign fonts are looked for in, in order, the brand
+--- font file the name is set in, where to write the PNG, and its size, the canonical 1920 by
+--- 1080 when left out, which must keep its shape.
+export type CoverRequest = { fontDirectories: { string }, font: string, out: string, width: number?, height: number? }
+
+--- A cover made, as a banner is.
+export type Cover = Banner
 
 local Commands = {}
 
@@ -142,16 +152,16 @@ local function findIn(directories: { string }, file: string): string?
   return nil
 end
 
---- The three fonts by role, the display face the campaign's own when it names one, and what the
+--- The fonts by role, the display face the campaign's own when it names one, and what the
 --- manifest says of them.
-local function fontsIn(directories: { string }, display: string?): ({ [string]: truetype.Font }, { FontRecord })
+local function fontsIn(directories: { string }, display: string?, roles: { string }): ({ [string]: truetype.Font }, { FontRecord })
   local loaded: { [string]: truetype.Font } = {}
   local records: { FontRecord } = {}
   local files = table.clone(theme.Fonts)
 
   files.display = display or files.display
 
-  for _, role in { 'display', 'support', 'mono' } do
+  for _, role in roles do
     local file = (files :: { [string]: string })[role]
     local path = findIn(directories, file)
 
@@ -231,7 +241,7 @@ function Commands.build(request: Request): Build
   local scale = scaleOf(request)
   local s3Data, s3 = logoAt(request.s3Logo, 'S3', '--logo')
   local dreamweaveData, dreamweave = logoAt(request.dreamweaveLogo, 'DreamWeave', '--dreamweave-logo')
-  local fonts, fontRecords = fontsIn(request.fontDirectories, read.display)
+  local fonts, fontRecords = fontsIn(request.fontDirectories, read.display, { 'display', 'support', 'mono' })
   local assets: propaganda.Assets = {
     fonts = { display = fonts.display, support = fonts.support, mono = fonts.mono },
     s3 = s3,
@@ -432,6 +442,61 @@ function Commands.banner(request: BannerRequest): Banner
     file = fs.fileName(made.file),
     altFile = fs.fileName(made.alt),
     alt = alt,
+    width = made.width,
+    height = made.height,
+    sha256 = made.sha256,
+  }
+
+  write(made.manifest, json.encodeTable(document, { indent = 2 }) .. '\n')
+
+  made.seconds = os.clock() - started
+
+  return made
+end
+
+--- What the cover shows, for a reader who can't see it.
+local CoverAlt = 'A propaganda-style cover. On the left, on black: OWN YOUR TOOLS. OWN YOUR ART. Jess, an application ecosystem for the agentic era. On the right, under purple rays, a lone figure raises an arm before a monumental machine whose glowing core wires together scripts, packages, graphics and audio over a bus of scripting, engine, tooling and deployment.'
+
+--- Renders the article cover and writes it, its alt text, and a manifest beside it.
+function Commands.cover(request: CoverRequest): Cover
+  local started = os.clock()
+  local canonical = theme.Cover
+  local width, height = request.width or canonical.width, request.height or canonical.height
+  local scale = width / canonical.width
+
+  if width < 1 or width % 1 ~= 0 or math.floor(canonical.height * scale + 0.5) ~= height then
+    error(`{width}x{height} isn't {canonical.width}x{canonical.height} scaled; the cover keeps its shape`, 0)
+  end
+
+  local fonts, records = fontsIn(request.fontDirectories, nil, { 'display', 'support', 'mono' })
+  local brand, brandRecord = fontAt(request.font, 'brand')
+  local rendered = cover.render({ display = fonts.display, support = fonts.support, mono = fonts.mono, brand = brand }, { scale = scale })
+  local encoded = magick.png(rendered.image)
+  local stem = string.gsub(request.out, '%.png$', '')
+  local made: Cover = {
+    file = request.out,
+    alt = `{stem}.txt`,
+    manifest = fs.join(fs.parent(request.out) or '.', 'manifest.json'),
+    width = rendered.image.width,
+    height = rendered.image.height,
+    sha256 = bytes.sha256(encoded),
+    seconds = 0,
+  }
+
+  table.insert(records, brandRecord)
+  write(made.file, encoded)
+  write(made.alt, CoverAlt .. '\n')
+
+  local document = {
+    cover = 'jess',
+    size = `{width}x{height}`,
+    renderer = renderer(),
+    palette = theme.Palette,
+    copy = { headline = canonical.headline, name = canonical.name, tagline = canonical.tagline, destination = canonical.destination },
+    inputs = { fonts = records },
+    file = fs.fileName(made.file),
+    altFile = fs.fileName(made.alt),
+    alt = CoverAlt,
     width = made.width,
     height = made.height,
     sha256 = made.sha256,

@@ -1,0 +1,470 @@
+--!strict
+--[[
+@dream-propaganda/cover: an article's cover, wide, for jess.
+
+  render(fonts, options) -> Rendered    the cover at a scale of 1920 by 1080
+
+The composition is a split. On the left, a black field cut off by a diagonal, the headline set
+flush left in it over the name and its tagline. On the right, under a sunburst, the machine: one
+monolith on a stepped plinth, its glowing core wired to four modules (a script, packages,
+graphics, audio) and standing on a bus that carries scripting, engine, tooling and deployment
+across it. Before it, small against it and lit by it, one figure, an arm raised. Everything is a
+primitive or a line of copy, in the campaign's palette; light is a blurred mask screened on.
+Copy whose ink leaves the safe inset is an error, as on a poster.
+]]
+local art = require './art'
+local canvas = require './canvas'
+local magick = require '@magick'
+local path = require '@magick/path'
+local text = require './text'
+local theme = require './theme'
+local truetype = require '@truetype'
+
+--- The faces a cover is set in: the campaign's three and the brand's, for the name.
+export type Fonts = { display: truetype.Font, support: truetype.Font, mono: truetype.Font, brand: truetype.Font }
+
+--- How a cover is made: at a scale of the canonical 1920 by 1080.
+export type Options = { scale: number }
+
+--- A drawn cover: its pixels and what was placed where, in canonical coordinates.
+export type Rendered = { image: magick.Image, marks: { canvas.Mark }, scale: number }
+
+local Cover = {}
+
+local Palette = theme.Palette
+
+--- The machine's core, where the sunburst and every wire start.
+local CoreX, CoreY = 1480, 430
+
+--- Where the figure and the plinth stand.
+local Ground = 890
+
+--- The diagonal the left field ends on: its top and bottom x.
+local CutTop, CutBottom = 1060, 880
+
+--- How far a module's label sits under it.
+local LabelGap = 14
+
+--- A screened glow of a shape: its coverage, spread by two box blurs of `radius`, in a color.
+local function glow(surface: canvas.Canvas, shape: path.Path, color: string, radius: number)
+  local scale = surface.scale
+  local mask, left, top = shape:transformed(scale, 0, 0):mask()
+  local reach = math.max(1, radius * scale)
+  -- The blur spreads past the shape's own bounds, so its coverage is set in a larger mask first.
+  local pad = math.ceil(reach * 2)
+  local width, height = mask.width + 2 * pad, mask.height + 2 * pad
+  local padded = buffer.create(width * height)
+
+  for row = 0, mask.height - 1 do
+    buffer.copy(padded, (row + pad) * width + pad, mask.data, row * mask.width, mask.width)
+  end
+
+  local soft = magick.blurMask(magick.blurMask(magick.mask(width, height, padded), reach), reach)
+
+  surface.image:screen(magick.maskToImage(soft, color), left - pad, top - pad)
+end
+
+--- Sets one line of copy at one size, its ink's left and top at a point, and draws it.
+local function line(surface: canvas.Canvas, font: truetype.Font, words: string, left: number, top: number, size: number, tracking: number, color: string, label: string): text.Block
+  local style: text.Style = {
+    font = font,
+    least = size,
+    most = size,
+    lines = 1,
+    leading = 1,
+    tracking = tracking,
+    align = 'left',
+  }
+  local block = text.fit(words, theme.box(left, top, theme.Cover.width, theme.Cover.height), style, label)
+
+  canvas.text(surface, block, color, label)
+
+  return block
+end
+
+--- A module's small label, centered under its panel.
+local function caption(surface: canvas.Canvas, fonts: Fonts, words: string, panel: theme.Box)
+  local style: text.Style = {
+    font = fonts.mono,
+    least = 20,
+    most = 20,
+    lines = 1,
+    leading = 1,
+    tracking = 0.12,
+    align = 'center',
+  }
+  local top = panel.bottom + LabelGap
+
+  canvas.text(surface, text.fit(words, theme.box(panel.left - 40, top, panel.right + 40, top + 40), style, words), Palette.orchid, words)
+end
+
+--- The rays behind the machine: every other wedge of a full turn around the core, in the deep
+--- purple, reaching past every edge.
+local function sunburst(surface: canvas.Canvas)
+  local rays = canvas.path(surface)
+  local wedges, reach = 36, 2400
+
+  for wedge = 0, wedges - 1, 2 do
+    local from, to = wedge * 2 * math.pi / wedges, (wedge + 1) * 2 * math.pi / wedges
+
+    rays:polygon {
+      { CoreX, CoreY },
+      { CoreX + reach * math.cos(from), CoreY + reach * math.sin(from) },
+      { CoreX + reach * math.cos(to), CoreY + reach * math.sin(to) },
+    }
+  end
+
+  canvas.fill(surface, rays, Palette.shadow)
+end
+
+--- The left field: black up to the diagonal, a lavender edge along it.
+local function field(surface: canvas.Canvas)
+  local height = theme.Cover.height
+
+  canvas.fill(surface, canvas.path(surface):polygon { { 0, 0 }, { CutTop, 0 }, { CutBottom, height }, { 0, height } }, Palette.black)
+  canvas.fill(surface, canvas.path(surface):polygon {
+    { CutTop, 0 },
+    { CutTop + 14, 0 },
+    { CutBottom + 14, height },
+    { CutBottom, height },
+  }, Palette.lavender)
+
+end
+
+--- A panel for a module: a black plate in a violet frame.
+local function panel(surface: canvas.Canvas, box: theme.Box)
+  canvas.fill(surface, canvas.path(surface):roundRect(box.left, box.top, box.right, box.bottom, 10), Palette.black)
+  canvas.fill(surface, canvas.path(surface):frame(box.left, box.top, box.right, box.bottom, 4), Palette.violet)
+  canvas.mark(surface, 'figure', 'module', box)
+end
+
+--- A script: lines of code as bars, indented, and a cursor.
+local function script(surface: canvas.Canvas, box: theme.Box)
+  local rows = {
+    { indent = 0, length = 70, color = Palette.orchid },
+    { indent = 18, length = 90, color = Palette.body },
+    { indent = 18, length = 54, color = Palette.body },
+    { indent = 36, length = 76, color = Palette.lavender },
+    { indent = 0, length = 30, color = Palette.orchid },
+  }
+  local left, top = box.left + 22, box.top + 22
+  local bars: { [string]: path.Path } = {}
+
+  for index, row in rows do
+    local {indent, length, color} = row
+    local rowTop = top + (index - 1) * 16
+
+    bars[color] = (bars[color] or canvas.path(surface)):roundRect(left + indent, rowTop, left + indent + length, rowTop + 8, 4)
+  end
+
+  for color, shape in bars do
+    canvas.fill(surface, shape, color)
+  end
+
+  canvas.rect(surface, left + 40, top + 4 * 16, left + 52, top + 4 * 16 + 10, Palette.pinkwhite)
+end
+
+--- An isometric cube, its top face's back corner at a point.
+local function cube(surface: canvas.Canvas, centerX: number, top: number, side: number)
+  local across, half = side * 0.866, side / 2
+  local middle = top + side
+
+  canvas.fill(surface, canvas.path(surface):polygon {
+    { centerX, top },
+    { centerX + across, top + half },
+    { centerX, middle },
+    { centerX - across, top + half },
+  }, Palette.lavender)
+
+  canvas.fill(surface, canvas.path(surface):polygon {
+    { centerX - across, top + half },
+    { centerX, middle },
+    { centerX, middle + side },
+    { centerX - across, top + half + side },
+  }, Palette.orchid)
+
+  canvas.fill(surface, canvas.path(surface):polygon {
+    { centerX, middle },
+    { centerX + across, top + half },
+    { centerX + across, top + half + side },
+    { centerX, middle + side },
+  }, Palette.violet)
+end
+
+--- Packages: three cubes, two side by side and one set on them.
+local function packages(surface: canvas.Canvas, box: theme.Box)
+  local centerX = (box.left + box.right) / 2
+  local side = 26
+
+  cube(surface, centerX - side * 0.866, box.top + 44, side)
+  cube(surface, centerX + side * 0.866, box.top + 44, side)
+  cube(surface, centerX, box.top + 44 - side, side)
+end
+
+--- The point halfway between two.
+local function between(first: { number }, second: { number }): { number }
+  return { (first[1] + second[1]) / 2, (first[2] + second[2]) / 2 }
+end
+
+--- Graphics: a triangle split into four, a wireframe, its corners lit.
+local function graphics(surface: canvas.Canvas, box: theme.Box)
+  local centerX = (box.left + box.right) / 2
+  local apex, left, right = { centerX, box.top + 18 }, { centerX - 54, box.bottom - 18 }, { centerX + 54, box.bottom - 18 }
+  local leftMiddle, rightMiddle, base = between(apex, left), between(apex, right), between(left, right)
+  local wires = canvas.path(surface)
+    :polyline({ apex, right, left, apex }, 3, 'round')
+    :polyline({ leftMiddle, rightMiddle, base, leftMiddle }, 3, 'round')
+
+  canvas.fill(surface, wires, Palette.lavender)
+
+  local corners = canvas.path(surface)
+
+  local points: { { number } } = { apex, left, right, leftMiddle, rightMiddle, base }
+
+  for _, point in points do
+    corners:circle(point[1], point[2], 5)
+  end
+
+  canvas.fill(surface, corners, Palette.pinkwhite)
+end
+
+--- Audio: a waveform, bars mirrored about the panel's middle.
+local function audio(surface: canvas.Canvas, box: theme.Box)
+  local heights = { 10, 22, 38, 60, 44, 72, 52, 30, 46, 24, 14, 8 }
+  local middle = (box.top + box.bottom) / 2
+  local width, gap = 6, 5
+  local left = (box.left + box.right) / 2 - (#heights * (width + gap) - gap) / 2
+  local bars = canvas.path(surface)
+
+  for index, tall in heights do
+    local barLeft = left + (index - 1) * (width + gap)
+
+    bars:roundRect(barLeft, middle - tall / 2, barLeft + width, middle + tall / 2, 3)
+  end
+
+  canvas.fill(surface, bars, Palette.lavender)
+end
+
+--- The machine: the monolith, its wires, its modules, its core, its bus, and its plinth.
+local function machine(surface: canvas.Canvas, fonts: Fonts)
+  local body = canvas.path(surface):polygon { { 1210, 150 }, { 1750, 150 }, { 1790, 830 }, { 1170, 830 } }
+  local outline = canvas.path(surface):polyline({ { 1210, 150 }, { 1750, 150 }, { 1790, 830 }, { 1170, 830 }, { 1210, 150 } }, 6, 'round')
+
+  canvas.fill(surface, body, Palette.black)
+  canvas.fill(surface, outline, Palette.violet)
+
+  -- The mast and its beacon, the machine's highest point.
+  canvas.rect(surface, CoreX - 3, 96, CoreX + 3, 150, Palette.violet)
+  glow(surface, canvas.path(surface):circle(CoreX, 96, 10), Palette.lavender, 14)
+  canvas.fill(surface, canvas.path(surface):circle(CoreX, 96, 9), Palette.pinkwhite)
+
+  local modules: { { box: theme.Box, name: string, draw: (canvas.Canvas, theme.Box) -> () } } = {
+    { box = theme.box(1240, 176, 1390, 276), name = 'SCRIPTS', draw = script },
+    { box = theme.box(1570, 176, 1720, 276), name = 'PACKAGES', draw = packages },
+    { box = theme.box(1240, 594, 1390, 694), name = 'GRAPHICS', draw = graphics },
+    { box = theme.box(1570, 594, 1720, 694), name = 'AUDIO', draw = audio },
+  }
+
+  -- Each module's wire leaves its inner side and turns once into the core.
+  local wires, nodes = canvas.path(surface), canvas.path(surface)
+
+  for _, module in modules do
+    local box = module.box
+    local inner = if box.left < CoreX then box.right else box.left
+    local middle = (box.top + box.bottom) / 2
+    local turn = if box.left < CoreX then CoreX - 60 else CoreX + 60
+    local reach = if middle < CoreY then CoreY - 100 else CoreY + 100
+
+    wires:polyline({ { inner, middle }, { turn, middle }, { turn, reach } }, 4, 'round')
+    nodes:circle(turn, middle, 7)
+    nodes:circle(inner, middle, 6)
+  end
+
+  canvas.fill(surface, wires, Palette.violet)
+  canvas.fill(surface, nodes, Palette.orchid)
+
+  for _, module in modules do
+    panel(surface, module.box)
+    module.draw(surface, module.box)
+    caption(surface, fonts, module.name, module.box)
+  end
+
+  -- The core: a halo, a violet ring, an orchid ring, a lavender disc and its white heart.
+  glow(surface, canvas.path(surface):circle(CoreX, CoreY, 130), '#DA96E070', 70)
+  canvas.fill(surface, canvas.path(surface):ring(CoreX, CoreY, 150, 145), Palette.violet)
+  canvas.fill(surface, canvas.path(surface):ring(CoreX, CoreY, 130, 112), Palette.orchid)
+  canvas.fill(surface, canvas.path(surface):circle(CoreX, CoreY, 96), Palette.lavender)
+  glow(surface, canvas.path(surface):circle(CoreX, CoreY, 44), Palette.pinkwhite, 24)
+  canvas.fill(surface, canvas.path(surface):circle(CoreX, CoreY, 40), Palette.pinkwhite)
+  canvas.mark(surface, 'figure', 'core', theme.box(CoreX - 150, CoreY - 150, CoreX + 150, CoreY + 150))
+
+  -- The bus: four cells across the monolith, one wire through them, from scripting to shipping.
+  local cells = { 'SCRIPTING', 'ENGINE', 'TOOLING', 'DEPLOYMENT' }
+  local busLeft, busRight, busTop, busBottom = 1214, 1746, 742, 792
+  local gap = 14
+  local cellWidth = (busRight - busLeft - gap * (#cells - 1)) / #cells
+  local style: text.Style = {
+    font = fonts.mono,
+    least = 14,
+    most = 20,
+    lines = 1,
+    leading = 1,
+    tracking = 0.08,
+    align = 'center',
+  }
+
+  -- Every cell is set at the size the longest name fits, so the bus reads as one line.
+  local longest = text.fit('DEPLOYMENT', theme.box(0, 15, cellWidth - 16, busBottom - busTop - 15), style, 'bus')
+
+  style.least, style.most = longest.size, longest.size
+  canvas.rect(surface, busLeft, (busTop + busBottom) / 2 - 2, busRight, (busTop + busBottom) / 2 + 2, Palette.orchid)
+
+  for index, name in cells do
+    local left = busLeft + (index - 1) * (cellWidth + gap)
+    local cell = theme.box(left, busTop, left + cellWidth, busBottom)
+    local inside = theme.box(cell.left + 8, cell.top + 15, cell.right - 8, cell.bottom - 15)
+
+    canvas.fill(surface, canvas.path(surface):roundRect(cell.left, cell.top, cell.right, cell.bottom, 6), Palette.orchid)
+
+    local block = text.fit(name, inside, style, name)
+
+    canvas.text(surface, text.shifted(block, (inside.bottom - block.ink.bottom) / 2), Palette.black, name)
+  end
+
+  -- The plinth, two steps, and the ground it and the figure stand on.
+  canvas.rect(surface, 1140, 830, 1820, 860, Palette.violet)
+  canvas.rect(surface, 1110, 860, 1848, Ground, Palette.shadow)
+  canvas.rect(surface, 1110, 860, 1848, 863, Palette.orchid)
+  canvas.rect(surface, CutBottom + 30, Ground, theme.Cover.width - theme.Cover.safe, Ground + 4, Palette.lavender)
+end
+
+--- The figure, before the machine: the core's light falling on the ground at its feet, the figure
+--- in black, its lit side rimmed in lavender, its right arm raised to the machine.
+local function figure(surface: canvas.Canvas)
+  local centerX = 1030
+  local pose: art.Pose = {
+    center = centerX,
+    ground = Ground,
+    height = 360,
+    leftHand = { centerX - 58, Ground - 168 },
+    rightHand = { centerX + 62, Ground - 396 },
+    color = Palette.black,
+  }
+
+  glow(surface, canvas.path(surface):circle(centerX + 20, Ground, 120, 16), '#DA96E080', 30)
+
+  local rim = canvas.path(surface)
+  local silhouette = canvas.path(surface)
+
+  for _, part in art.builder(pose) do
+    rim:append(part.shape:transformed(1, 4, -3))
+    silhouette:append(part.shape)
+  end
+
+  -- Backlit by the core: a soft halo all round, a hard rim on the side facing it.
+  glow(surface, silhouette, Palette.lavender, 8)
+  canvas.fill(surface, rim, Palette.lavender)
+  canvas.fill(surface, silhouette, Palette.black)
+
+  local left, top, right, bottom = rim:bounds()
+
+  canvas.mark(surface, 'figure', 'figure', theme.box(left, top, right, bottom))
+end
+
+--- The copy: a rule, the headline's two lines, the name and the tagline beside it, and the
+--- address at the foot.
+local function copy(surface: canvas.Canvas, fonts: Fonts)
+  local cover = theme.Cover
+  local left = 112
+  local headline: text.Style = {
+    font = fonts.display,
+    least = 104,
+    most = 180,
+    lines = 2,
+    leading = 0.9,
+    tracking = 0.01,
+    align = 'left',
+  }
+
+  -- Both halves are set at the size the wider fits, so the four lines stand as one block.
+  local half = theme.box(left, 0, 860, 250)
+  local sized = math.huge
+
+  for _, words in cover.headline do
+    sized = math.min(sized, text.fit(words, half, headline, 'headline').size)
+  end
+
+  headline.least, headline.most = sized, sized
+  canvas.rect(surface, left, 104, left + 150, 116, Palette.lavender)
+
+  local first = text.fit(cover.headline[1], theme.box(left, 148, 860, 1080), headline, 'headline')
+  local second = text.fit(cover.headline[2], theme.box(left, first.ink.bottom + sized * 0.2, 860, 1080), headline, 'headline')
+
+  canvas.text(surface, first, Palette.pinkwhite, 'headline')
+  canvas.text(surface, second, Palette.lavender, 'headline')
+
+  local name = line(surface, fonts.brand, cover.name, left, second.ink.bottom + 76, 100, 0.02, Palette.lavender, 'name')
+  local ruleLeft = name.ink.right + 40
+
+  canvas.rect(surface, ruleLeft, name.ink.top + 6, ruleLeft + 4, name.ink.bottom, Palette.violet)
+
+  local tagline: text.Style = {
+    font = fonts.support,
+    least = 28,
+    most = 40,
+    lines = 2,
+    leading = 1.3,
+    tracking = 0,
+    align = 'left',
+  }
+  local room = theme.box(ruleLeft + 40, name.ink.top, 860, name.ink.bottom + 20)
+  local block = text.fit(cover.tagline, room, tagline, 'tagline')
+  local middle = (name.ink.top + name.ink.bottom) / 2
+
+  canvas.text(surface, text.shifted(block, middle - (block.ink.top + block.ink.bottom) / 2), Palette.body, 'tagline')
+
+  local footTop = cover.height - cover.safe - 34
+
+  canvas.rect(surface, left, footTop - 30, left + 520, footTop - 28, Palette.violet)
+  line(surface, fonts.mono, cover.destination, left, footTop, 26, 0.02, Palette.orchid, 'destination')
+end
+
+--- The marks outside the safe inset, as messages.
+local function outside(marks: { canvas.Mark }): { string }
+  local cover = theme.Cover
+  local problems: { string } = {}
+  local least, right, bottom = cover.safe, cover.width - cover.safe, cover.height - cover.safe
+  -- Ink is measured to the outline, and coverage reaches a fraction of a pixel past it.
+  local slack = 0.5
+
+  for _, mark in marks do
+    local box = mark.box
+
+    if box.left < least - slack or box.top < least - slack or box.right > right + slack or box.bottom > bottom + slack then
+      local where = `{math.floor(box.left)},{math.floor(box.top)} to {math.ceil(box.right)},{math.ceil(box.bottom)}`
+
+      table.insert(problems, `{mark.kind} '{mark.label}' reaches {where}, past the {cover.safe} px safe inset`)
+    end
+  end
+
+  return problems
+end
+
+--- Draws the cover, or raises naming what reached past the safe inset.
+function Cover.render(fonts: Fonts, options: Options): Rendered
+  local surface = canvas.sized(theme.Cover.width, theme.Cover.height, options.scale)
+
+  sunburst(surface)
+  field(surface)
+  machine(surface, fonts)
+  figure(surface)
+  copy(surface, fonts)
+
+  local problems = outside(surface.marks)
+
+  if #problems > 0 then error(`the cover:\n  {table.concat(problems, '\n  ')}`, 0) end
+
+  return { image = surface.image, marks = surface.marks, scale = options.scale }
+end
+
+return Cover

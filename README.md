@@ -120,6 +120,24 @@ the font's digest and the PNG's. It takes `--out PATH`, `--size WxH` (1280x640 s
 the SIL Open Font License's, read where it's installed and never shipped; the suites set the
 banner in Noto Sans instead, so a machine without Oxanium still tests it.
 
+## The cover
+
+`dream-propaganda cover` draws jess's article cover, LinkedIn's 1920 by 1080: `OWN YOUR TOOLS.
+OWN YOUR ART.` flush left on a black field cut off by a diagonal, the name in Oxanium and its
+tagline under it, and on the right, under purple rays, one figure with an arm raised before a
+monolith whose glowing core wires scripts, packages, graphics and audio together over a bus of
+scripting, engine, tooling and deployment. Every shape is a primitive in the campaign's palette;
+the light is a blurred mask screened on.
+
+```sh
+jess workspace run --trusted dream-propaganda -- cover
+```
+
+That writes `covers/jess-linkedin.png`, its alt text beside it, and `covers/manifest.json` with
+every font's digest and the PNG's. It takes `--out PATH`, `--size WxH` (1920x1080 scaled),
+`--font PATH`, the Oxanium SemiBold TTF the name is set in, and `--font-dir DIR` for the
+campaign's three faces, looked for as a build looks for them.
+
 ## The copy
 
 `posters.toml` is the copy, word for word as approved. The build never rewrites it: copy that

@@ -6,6 +6,7 @@
   debug(rendered) -> Image                         the same poster with its layout drawn over it
   campaign                                         @dream-propaganda/campaign
   banner                                           jess's own banner, its name on a social preview
+  cover                                            jess's article cover, a figure before the machine
 
 Each voice has its template: the founder's posters show a supplied logo, the collective's
 anonymous builders at shared work, the doctrine's a diagram. Everything is drawn from primitives,
@@ -16,6 +17,7 @@ shipping it.
 local banner = require '@self/banner'
 local campaign = require '@self/campaign'
 local canvas = require '@self/canvas'
+local cover = require '@self/cover'
 local collective = require '@self/templates/collective'
 local common = require '@self/templates/common'
 local doctrine = require '@self/templates/doctrine'
@@ -28,6 +30,7 @@ export type Assets = common.Assets
 export type Campaign = campaign.Campaign
 export type Edition = campaign.Edition
 export type Poster = campaign.Poster
+export type CoverFonts = cover.Fonts
 
 --- How a poster is made: at a scale of the canonical canvas.
 export type Options = { scale: number }
@@ -40,6 +43,7 @@ local Propaganda = {}
 
 Propaganda.banner = banner
 Propaganda.campaign = campaign
+Propaganda.cover = cover
 Propaganda.theme = theme
 
 local Templates: { [string]: (canvas.Canvas, campaign.Poster, Assets) -> number } = {

@@ -82,6 +82,18 @@ Theme.Banner = {
   safe = 0.8,
 }
 
+--- The cover, an article's header image: LinkedIn's 1920 by 1080, the same safe inset as a
+--- poster's, and its copy, word for word as approved.
+Theme.Cover = {
+  width = 1920,
+  height = 1080,
+  safe = 72,
+  headline = { 'OWN YOUR\nTOOLS.', 'OWN YOUR\nART.' },
+  name = 'Jess',
+  tagline = 'An application ecosystem\nfor the agentic era.',
+  destination = 'dreamweave-mp.github.io/jess',
+}
+
 local Voices: { [string]: Colors } = {
   founder = { accent = Theme.Palette.lavender, structure = Theme.Palette.violet, panel = Theme.Palette.lavender },
   collective = { accent = Theme.Palette.orchid, structure = Theme.Palette.violet, panel = Theme.Palette.orchid },

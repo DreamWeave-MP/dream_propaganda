@@ -21,11 +21,16 @@ export type Canvas = { image: magick.Image, scale: number, marks: { Mark } }
 
 local Canvas = {}
 
+--- A canvas `scale` times a canonical width and height, filled with the palette's black.
+function Canvas.sized(width: number, height: number, scale: number): Canvas
+  local across, down = math.floor(width * scale + 0.5), math.floor(height * scale + 0.5)
+
+  return { image = magick.new(across, down, theme.Palette.black), scale = scale, marks = {} }
+end
+
 --- A canvas `scale` times the canonical size, filled with the palette's black.
 function Canvas.new(scale: number): Canvas
-  local width, height = math.floor(theme.Width * scale + 0.5), math.floor(theme.Height * scale + 0.5)
-
-  return { image = magick.new(width, height, theme.Palette.black), scale = scale, marks = {} }
+  return Canvas.sized(theme.Width, theme.Height, scale)
 end
 
 --- A path to draw in canonical coordinates, flattened finely enough for the canvas's size.

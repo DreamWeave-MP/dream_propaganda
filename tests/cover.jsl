@@ -1,0 +1,82 @@
+--!strict
+-- Jess's article cover: its size, its copy inside the safe inset, the same bytes twice, and the
+-- files a build writes. The name is set in the installed Noto Sans Condensed Black instead of
+-- the brand font, as the banner's suite does: not every machine has Oxanium.
+local bytes = require '@dream/bytes'
+local commands = require '@dream-propaganda/commands'
+local fs = require '@dream/fs'
+local json = require '@jess/json'
+local magick = require '@magick'
+local propaganda = require '@dream-propaganda'
+local support = require './support'
+local test = require '@jess/test'
+
+--- What the suite reads of a cover's manifest.
+type Manifest = { cover: string, size: string, inputs: { fonts: { { role: string, file: string, sha256: string } } }, sha256: string }
+
+local expect = test.expect
+local suite = test.new()
+
+local cover, theme = propaganda.cover, propaganda.theme
+
+--- The campaign's fonts, the display face standing in for the brand's.
+local function fonts(): propaganda.CoverFonts
+  local loaded = support.assets().fonts
+
+  return { display = loaded.display, support = loaded.support, mono = loaded.mono, brand = loaded.display }
+end
+
+suite.it('draws 1920 by 1080, its copy inside the safe inset', function()
+  local rendered = cover.render(fonts(), { scale = 1 })
+  local safe = theme.Cover.safe
+  local copied = 0
+
+  expect({ rendered.image.width, rendered.image.height }).toEqual { 1920, 1080 }
+
+  for _, mark in rendered.marks do
+    if mark.kind == 'copy' then copied += 1 end
+
+    expect(mark.box.left >= safe - 0.5 and mark.box.top >= safe - 0.5).toBe(true)
+    expect(mark.box.right <= 1920 - safe + 0.5 and mark.box.bottom <= 1080 - safe + 0.5).toBe(true)
+  end
+
+  -- The headline's two halves, the name, the tagline, the address, four captions, four cells.
+  expect(copied).toBe(13)
+end)
+
+suite.it('draws the same bytes twice, and the same drawing at twice the size', function()
+  local first = magick.png(cover.render(fonts(), { scale = 1 }).image)
+  local second = magick.png(cover.render(fonts(), { scale = 1 }).image)
+  local doubled = cover.render(fonts(), { scale = 2 })
+
+  expect(buffer.tostring(first) == buffer.tostring(second)).toBe(true)
+  expect({ doubled.image.width, doubled.image.height }).toEqual { 3840, 2160 }
+end)
+
+suite.it('writes the cover, its alt text and its manifest, and refuses another shape', function()
+  local folder = support.scratch 'cover'
+  local fontPath = fs.join(support.FontDirectory, theme.Fonts.display)
+  local out = fs.join(folder, 'out', 'jess-linkedin.png')
+  local request: commands.CoverRequest = { fontDirectories = { support.FontDirectory }, font = fontPath, out = out }
+  local made = commands.cover(request)
+
+  expect(made.alt).toBe(fs.join(folder, 'out', 'jess-linkedin.txt'))
+  expect({ made.width, made.height }).toEqual { 1920, 1080 }
+  expect(bytes.sha256(support.read(out))).toBe(made.sha256)
+  expect((string.find(support.read(made.alt), 'OWN YOUR TOOLS. OWN YOUR ART.', 1, true)) ~= nil).toBe(true)
+
+  local manifest = (json.decode(support.read(made.manifest)) :: unknown) :: Manifest
+
+  expect(manifest.cover).toBe 'jess'
+  expect(manifest.size).toBe '1920x1080'
+  expect([for font in manifest.inputs.fonts => font.role]).toEqual { 'display', 'support', 'mono', 'brand' }
+  expect(manifest.sha256).toBe(made.sha256)
+  -- Nothing in it says where the fonts were read from.
+  expect((string.find(support.read(made.manifest), support.FontDirectory, 1, true))).toBeNil()
+
+  expect(function()
+    commands.cover { fontDirectories = { support.FontDirectory }, font = fontPath, out = out, width = 1920, height = 1200 }
+  end).toThrow "1920x1200 isn't 1920x1080 scaled"
+end)
+
+return suite

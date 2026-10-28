@@ -10,9 +10,11 @@
                    [--no-preview] [--manifest PATH] [--editions PATH] [--font-dir DIR]
   dream-propaganda check [--manifest PATH] [--editions PATH]
   dream-propaganda banner [--out PATH] [--size WxH] [--font PATH]
+  dream-propaganda cover [--out PATH] [--size WxH] [--font PATH] [--font-dir DIR]
 
 `build` is the default. `banner` draws jess's social preview, GitHub's 1280 by 640, in the
-brand font; without --font it reads Oxanium SemiBold from the user's installed fonts under HOME. Without --poster every poster is built. Without --logo the S3 logo is
+brand font; without --font it reads Oxanium SemiBold from the user's installed fonts under HOME.
+`cover` draws jess's article cover, 1920 by 1080, in the campaign's fonts and the brand's. Without --poster every poster is built. Without --logo the S3 logo is
 DREAM_PROPAGANDA_LOGO, or else Pictures/s3logo.png under HOME; without --dreamweave-logo the
 DreamWeave logo is DREAM_PROPAGANDA_DREAMWEAVE_LOGO. --manifest and --editions read the copy from
 files instead of the package's own posters.toml and editions.toml. Fonts are looked for in each
@@ -30,6 +32,7 @@ local theme = require './theme'
 export type Command =
   | { action: 'build' | 'check', request: commands.Request }
   | { action: 'banner', request: commands.BannerRequest }
+  | { action: 'cover', request: commands.CoverRequest }
   | { action: 'help' }
 
 local Cli = {}
@@ -40,13 +43,18 @@ local Valued = { '--poster', '--logo', '--dreamweave-logo', '--out-dir', '--edit
 --- The banner's flags that take a value.
 local BannerValued = { '--out', '--font', '--size' }
 
+--- The cover's flags that take a value.
+local CoverValued = { '--out', '--font', '--size', '--font-dir' }
+
 local Usage = [[
 Usage: dream-propaganda [build] [OPTIONS]
        dream-propaganda check [--manifest PATH] [--editions PATH]
        dream-propaganda banner [--out PATH] [--size WxH] [--font PATH]
+       dream-propaganda cover [--out PATH] [--size WxH] [--font PATH] [--font-dir DIR]
 
 Builds OPERATION: BUILD SOMETHING's posters from their copy, the S3 and DreamWeave logos, and
-installed fonts; `banner` draws jess's social preview, its name in Oxanium on near-black.
+installed fonts; `banner` draws jess's social preview, its name in Oxanium on near-black;
+`cover` draws jess's article cover, a figure before the machine.
 
 Options:
   --poster ID        Build this poster (repeatable); every poster without it
@@ -70,6 +78,13 @@ Banner options:
                      [default: banners/jess-github.png]
   --size WxH         The banner's size, 1280x640 scaled [default: 1280x640]
   --font PATH        The Oxanium SemiBold TTF [default: ~/.local/share/fonts/Oxanium-SemiBold.ttf]
+
+Cover options:
+  --out PATH         Where to write the cover PNG; its alt text and manifest go beside it
+                     [default: covers/jess-linkedin.png]
+  --size WxH         The cover's size, 1920x1080 scaled [default: 1920x1080]
+  --font PATH        The Oxanium SemiBold TTF the name is set in, as for the banner
+  --font-dir DIR     A folder to look for the campaign's fonts in (repeatable), as for a build
 ]]
 
 --- Where the S3 logo is when no flag says: the environment's choice, or the founder's own folder.
@@ -141,6 +156,53 @@ local function parseBanner(argv: { string }, environment: (string) -> string?): 
   return { action = 'banner' :: 'banner', request = request }, nil
 end
 
+--- The cover an argument list asks for, or why it can't be used.
+local function parseCover(argv: { string }, environment: (string) -> string?): (Command?, string?)
+  local request: commands.CoverRequest = { fontDirectories = {}, font = '', out = 'covers/jess-linkedin.png' }
+  local index = 2
+
+  while index <= #argv do
+    local flag = argv[index]
+    local value = argv[index + 1]
+
+    if flag == '-h' or flag == '--help' then return { action = 'help' }, nil end
+
+    if value == nil and table.find(CoverValued, flag) then return nil, `{flag} needs a value` end
+
+    if flag == '--out' then
+      request.out = value
+    elseif flag == '--font' then
+      request.font = value
+    elseif flag == '--font-dir' then
+      table.insert(request.fontDirectories, value)
+    elseif flag == '--size' then
+      local width, height = string.match(value, '^(%d+)x(%d+)$')
+      if not width or not height then return nil, `--size takes WIDTHxHEIGHT, not '{value}'` end
+
+      request.width, request.height = tonumber(width), tonumber(height)
+    else
+      return nil, `unknown argument '{flag}' for cover`
+    end
+
+    index += 2
+  end
+
+  if #request.fontDirectories == 0 then
+    local user = userFontDirectory(environment)
+
+    request.fontDirectories = if user then { NotoDirectory, user } else { NotoDirectory }
+  end
+
+  if request.font == '' then
+    local found = defaultFont(environment)
+    if not found then return nil, `no brand font: pass --font PATH, the path to {theme.Fonts.brand}` end
+
+    request.font = found
+  end
+
+  return { action = 'cover' :: 'cover', request = request }, nil
+end
+
 --- The command an argument list asks for, or why it can't be used.
 function Cli.parse(argv: { string }, environment: (string) -> string?): (Command?, string?)
   local action: 'build' | 'check' = 'build'
@@ -156,6 +218,8 @@ function Cli.parse(argv: { string }, environment: (string) -> string?): (Command
   local index = 1
 
   if argv[1] == 'banner' then return parseBanner(argv, environment) end
+
+  if argv[1] == 'cover' then return parseCover(argv, environment) end
 
   if argv[1] == 'build' or argv[1] == 'check' then
     action = argv[1] :: 'build' | 'check'
@@ -261,6 +325,8 @@ function Cli.run(argv: { string }): number
 
     if command.action == 'banner' then return commands.banner(command.request) end
 
+    if command.action == 'cover' then return commands.cover(command.request) end
+
     return commands.build(command.request)
   end)
 
@@ -282,6 +348,15 @@ function Cli.run(argv: { string }): number
     local made = outcome :: commands.Banner
 
     say('stdout', `banner  {made.file}  {made.width}x{made.height}  {string.format('%.2f', made.seconds)}s`)
+    say('stdout', `manifest  {made.manifest}`)
+
+    return 0
+  end
+
+  if command.action == 'cover' then
+    local made = outcome :: commands.Cover
+
+    say('stdout', `cover  {made.file}  {made.width}x{made.height}  {string.format('%.2f', made.seconds)}s`)
     say('stdout', `manifest  {made.manifest}`)
 
     return 0
