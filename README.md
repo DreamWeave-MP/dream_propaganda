@@ -168,3 +168,17 @@ The suites draw with stand-in logos of their own and set copy in the installed N
 
 MIT OR Apache-2.0. The fonts are the SIL Open Font License's and aren't part of this package; the
 logos are their owners'.
+
+## Standalone Constructivist headers (native JSL)
+
+Additional independent targets, leaving the campaign, GitHub banner, and
+**1920 × 1080 LinkedIn article cover** commands above unchanged:
+
+- `jess package run --trusted --target constructivist ...` renders a **1920 × 128**
+  community header for r/JessRuntime.
+- `jess package run --trusted --target linkedin ...` renders a **1584 × 396**
+  S3KSHUN8 **personal profile header** (not the article cover).
+
+The scenes are defined in `src/constructivist_scenes.jsl` and rendered with
+`@magick` and `@truetype`. No Python generator, JSON cache, or preprocessing.
+See [CONSTRUCTIVIST.md](CONSTRUCTIVIST.md) and [LINKEDIN.md](LINKEDIN.md).

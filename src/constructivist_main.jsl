@@ -1,0 +1,97 @@
+--!strict
+-- A standalone Reddit community banner, composed at its true 1920 × 128 resolution.
+-- This lives in dream_propaganda, using its Magick and TrueType dependencies.
+-- The artwork geometry is built natively in JSL.
+local fs = require '@dream/fs'
+local magick = require '@magick'
+local path = require '@magick/path'
+local process = require '@dream/process'
+local truetype = require '@truetype'
+
+local arguments = { ... }
+if arguments[1] == '--' then table.remove(arguments, 1) end
+local directory = 'constructivist-out'
+local fonts = '/usr/share/fonts/google-noto'
+
+local index = 1
+while index <= #arguments do
+  local key = arguments[index]
+  local value = arguments[index + 1]
+
+  if key == '--out-dir' and value then
+    directory = value
+  elseif key == '--font-dir' and value then
+    fonts = value
+  else
+    error(`unknown or incomplete argument: {key}`, 0)
+  end
+
+  index += 2
+end
+
+local function fontAt(filename: string): truetype.Font
+  local location = fs.join(fonts, filename)
+  local bytes, problem = fs.readFile(location)
+  if not bytes then error(`can't read font {location}: {problem}`, 0) end
+
+  return truetype.load(bytes)
+end
+
+local display = fontAt('NotoSans-CondensedBlack.ttf')
+local mono = fontAt('NotoSansMono-Bold.ttf')
+
+local scenes = require './constructivist_scenes'
+
+local function drawText(image: magick.Image, layer: scenes.Layer)
+  local font = if layer.font == 'mono' then mono else display
+  local size = assert(layer.size)
+  local value = assert(layer.text)
+  local positionX = assert(layer.positionX)
+  local positionY = assert(layer.positionY)
+  local options: truetype.Options = { tracking = 0 }
+  local metrics = font:measure(value, size, options)
+
+  while layer.max_width and metrics.right - metrics.left > layer.max_width and size > 12 do
+    size -= 1
+    metrics = font:measure(value, size, options)
+  end
+
+  local outline = path.new(0.25)
+  local origin = positionX - metrics.left
+  local baseline = positionY - metrics.top
+
+  font:outline(outline:pen(), value, size, origin, baseline, options)
+  outline:fill(image, layer.color)
+end
+
+local function drawScene(scene: scenes.Scene): magick.Image
+  local image = magick.new(scene.width, scene.height, scene.background)
+
+  for _, layer in scene.layers do
+    if layer.type == 'rect' then
+      local bounds = assert(layer.box)
+      path.new():rect(bounds[1], bounds[2], bounds[3], bounds[4]):fill(image, layer.color)
+    elseif layer.type == 'poly' then
+      path.new():polygon(assert(layer.points)):fill(image, layer.color)
+    elseif layer.type == 'text' then
+      drawText(image, layer)
+    else
+      error(`unknown constructivist scene layer: {layer.type}`, 0)
+    end
+  end
+
+  return image
+end
+
+local function write(filename: string, data: buffer | string)
+  local file = fs.join(directory, filename)
+  local success, problem = fs.writeFile(file, data, { atomic = true, createParents = true })
+  if not success then error(`cannot write {file}: {problem}`, 0) end
+  process.write('stdout', `{file}\n`)
+end
+
+write('jess-banner.png', magick.png(drawScene(scenes.banner)))
+
+write('jess-banner.txt', 'A 128-pixel-tall Reddit banner with violet and atomic-green constructivist geometry, two raised fists gripping left-facing open-ended wrenches, JESS lettering and the slogan The future will not build itself.\n')
+
+return 0

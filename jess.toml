@@ -5,7 +5,7 @@ id = "org.dreamweave.dream-propaganda"
 version = "0.1.0"
 jess_api = "1"
 default_target = "dream-propaganda"
-include = ["src", "tests", "docs", "campaigns", "posters.toml", "editions.toml", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+include = ["src", "tests", "docs", "campaigns", "posters.toml", "editions.toml", "README.md", "CONSTRUCTIVIST.md", "LINKEDIN.md", "LICENSE-MIT", "LICENSE-APACHE"]
 tests = ["tests/campaign.jsl", "tests/layout.jsl", "tests/determinism.jsl", "tests/banner.jsl", "tests/cover.jsl", "tests/smoke.jsl", "tests/style.jsl"]
 
 [dependencies]
@@ -38,3 +38,17 @@ kind = "command"
 command = "dream-propaganda"
 entry = "src/main.jsl"
 capabilities = ["filesystem.read", "filesystem.write", "process.environment", "process.stdio"]
+
+# Standalone Constructivist compositions. These add to, rather than replace, the
+# campaign, banner, and LinkedIn article-cover features above.
+[targets.constructivist]
+kind = "command"
+command = "dream-propaganda-constructivist"
+entry = "src/constructivist_main.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.stdio"]
+
+[targets.linkedin]
+kind = "command"
+command = "dream-propaganda-linkedin"
+entry = "src/linkedin_main.jsl"
+capabilities = ["filesystem.read", "filesystem.write", "process.stdio"]

@@ -1,0 +1,251 @@
+--!strict
+-- All Constructivist geometry is generated inside Jess in JSL.
+-- No external geometry generator, scripted preprocessing, or JSON scene cache.
+
+local Ink = '#100F13'
+local Plum = '#23003F'
+local Purple = '#3C006A'
+local Lavender = '#CE99FE'
+local Lilac = '#AA73FF'
+local Atom = '#B3FF3C'
+local Green = '#135900'
+local Paper = '#F5F1FF'
+local Shade = '#6A3993'
+
+export type Point = { number }
+export type Points = { Point }
+
+export type Layer = {
+  type: string,
+  color: string,
+  box: { number }?,
+  points: Points?,
+  text: string?,
+  positionX: number?,
+  positionY: number?,
+  size: number?,
+  font: string?,
+  max_width: number?,
+}
+
+export type Scene = {
+  width: number,
+  height: number,
+  background: string,
+  layers: { Layer },
+}
+
+local function scene(width: number, height: number, background: string): Scene
+  return { width = width, height = height, background = background, layers = {} }
+end
+
+local function rectangle(canvas: Scene, left: number, top: number, right: number, bottom: number, color: string)
+  table.insert(canvas.layers, { type = 'rect', box = { left, top, right, bottom }, color = color })
+end
+
+local function polygon(canvas: Scene, points: Points, color: string)
+  table.insert(canvas.layers, { type = 'poly', points = points, color = color })
+end
+
+local function label(canvas: Scene, value: string, originX: number, originY: number, size: number, color: string, maximum: number?, mono: boolean?)
+  table.insert(canvas.layers, {
+    type = 'text', text = value, positionX = originX, positionY = originY, size = size,
+    color = color, font = if mono then 'mono' else 'display', max_width = maximum,
+  })
+end
+
+-- Commands are either { originX, originY } line segments or
+-- { control1X, control1Y, control2X, control2Y, endX, endY } cubic curves.
+-- This is the same sampled cubic construction used for our poster geometry.
+local function trace(originX: number, originY: number, commands: { Point }): Points
+  local points: Points = { { originX, originY } }
+  for _, command in commands do
+    if #command == 2 then
+      originX, originY = command[1], command[2]
+      table.insert(points, { originX, originY })
+    elseif #command == 6 then
+      local controlX, controlY = originX, originY
+      for index = 1, 10 do
+        local fraction = index / 10
+        local inverse = 1 - fraction
+        local endX = inverse ^ 3 * controlX + 3 * inverse ^ 2 * fraction * command[1] + 3 * inverse * fraction ^ 2 * command[3] + fraction ^ 3 * command[5]
+        local endY = inverse ^ 3 * controlY + 3 * inverse ^ 2 * fraction * command[2] + 3 * inverse * fraction ^ 2 * command[4] + fraction ^ 3 * command[6]
+        table.insert(points, { endX, endY })
+      end
+      originX, originY = command[5], command[6]
+    else
+      error('A path command must contain 2 or 6 coordinates', 0)
+    end
+  end
+
+  return points
+end
+
+local function transform(points: Points, originX: number, originY: number, scale: number, tilt: number, flipped: boolean): Points
+  local angle = math.rad(tilt)
+  local cosine, sine = math.cos(angle), math.sin(angle)
+  local translated: Points = {}
+  for _, point in points do
+    local px = (if flipped then -point[1] else point[1]) * scale
+    local py = point[2] * scale
+    table.insert(translated, { originX + cosine * px - sine * py, originY + sine * px + cosine * py })
+  end
+
+  return translated
+end
+
+local function shape(canvas: Scene, points: Points, color: string, originX: number, originY: number, scale: number, tilt: number, flipped: boolean)
+  polygon(canvas, transform(points, originX, originY, scale, tilt, flipped), color)
+end
+
+local function stroke(canvas: Scene, centerline: Points, thickness: number, color: string, originX: number, originY: number, scale: number, tilt: number, flipped: boolean)
+  local points = transform(centerline, originX, originY, scale, tilt, flipped)
+  local left: Points, right: Points = {}, {}
+  for index, point in points do
+    local previous = points[math.max(1, index - 1)]
+    local following = points[math.min(#points, index + 1)]
+    local dx, dy = following[1] - previous[1], following[2] - previous[2]
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length == 0 then length = 1 end
+    local nx, ny = -dy / length * thickness * scale / 2, dx / length * thickness * scale / 2
+    table.insert(left, { point[1] + nx, point[2] + ny })
+    table.insert(right, { point[1] - nx, point[2] - ny })
+  end
+
+  for index = #right, 1, -1 do table.insert(left, right[index]) end
+
+  polygon(canvas, left, color)
+end
+
+local wrenchPath = trace(190, 56, {
+  {-135,56}, {-169,56,-172,34,-202,18}, {-237,-2,-272,0,-299,28},
+  {-294,46}, {-264,44}, {-244,34}, {-224,34,-214,45,-213,62},
+  {-212,80,-223,93,-244,90}, {-264,79}, {-293,80}, {-299,98},
+  {-271,132,-237,139,-206,122}, {-175,105,-166,85,-135,85},
+  {190,85}, {199,82,200,58,190,56},
+})
+
+local wrenchRidge = trace(104,65, { {171,65}, {173,69}, {104,69} })
+
+local forearm = trace(-59,152, {
+  {-66,207,-69,254,-78,310}, {-88,388,-103,490,-121,612},
+  {-132,707,-137,775,-145,850}, {143,850},
+  {130,758,112,645,96,535}, {82,421,68,282,60,152},
+})
+
+local fist = trace(-72,140, {
+  {-86,131,-94,111,-87,92}, {-84,83,-80,79,-77,70}, {-80,46},
+  {-83,23,-72,11,-55,10}, {-43,9,-37,18,-34,34}, {-31,16},
+  {-29,-4,-15,-11,-1,-8}, {11,-5,14,6,12,24}, {17,10},
+  {22,-10,37,-14,49,-7}, {61,0,61,16,57,35},
+  {68,15,80,13,90,22}, {105,36,97,55,88,75},
+  {105,93,103,110,94,127}, {84,146,69,153,64,173},
+  {59,203}, {22,220,-23,219,-59,203},
+  {-62,173}, {-65,159,-65,151,-72,140},
+})
+
+local thumb = trace(-81,104, {
+  {-75,91,-61,86,-46,92}, {-22,102,-11,122,13,123},
+  {28,125,46,116,57,126}, {73,140,65,155,51,166},
+  {30,180,-2,163,-29,155}, {-52,150,-88,126,-81,104},
+})
+
+local seams = {
+  trace(-37,27, { {-34,54,-35,73,-33,84} }),
+  trace(10,22, { {8,49,8,62,13,78} }),
+  trace(55,30, { {51,53,51,66,57,84} }),
+  trace(-55,153, { {-31,166,-9,180,18,181} }),
+}
+
+local thumbFold = trace(-73,105, {
+  {-65,93,-54,96,-39,104}, {-22,113,-6,127,15,126},
+  {31,126,39,118,50,127},
+})
+
+local thumbMark = trace(30,143, { {39,143,46,141,51,143} })
+
+-- Draw forearm, then the tool, then the hand in front of the handle.
+-- Both right- and left-handed poses can keep the wrench head facing left.
+local function worker(canvas: Scene, originX: number, originY: number, scale: number, tilt: number, arm: string, hand: string, wrench: string, flipped: boolean, wrenchFlipped: boolean?)
+  shape(canvas, forearm, arm, originX,originY,scale,tilt,flipped)
+  local toolFlipped = if wrenchFlipped == nil then flipped else wrenchFlipped
+  shape(canvas, wrenchPath, wrench, originX,originY,scale,tilt,toolFlipped)
+  shape(canvas, wrenchRidge, Ink, originX,originY,scale,tilt,toolFlipped)
+  shape(canvas, fist, hand, originX,originY,scale,tilt,flipped)
+  shape(canvas, thumb, hand, originX,originY,scale,tilt,flipped)
+  for index = 1, 3 do
+    stroke(canvas, seams[index], 3.4, arm, originX,originY,scale,tilt,flipped)
+  end
+  stroke(canvas, thumbFold, 4.2, arm, originX,originY,scale,tilt,flipped)
+  stroke(canvas, seams[4], 2.8, arm, originX,originY,scale,tilt,flipped)
+  stroke(canvas, thumbMark, 3, arm, originX,originY,scale,tilt,flipped)
+end
+
+local poster = scene(1200,1800,Ink)
+rectangle(poster,25,25,1175,1775,Lavender)
+rectangle(poster,42,42,1158,1758,Plum)
+polygon(poster,{{42,600},{1158,520},{1158,1300},{42,1470}},Purple)
+polygon(poster,{{42,800},{1158,604},{1158,775},{42,974}},Lavender)
+polygon(poster,{{42,910},{1158,680},{1158,790},{42,1040}},Atom)
+polygon(poster,{{42,1210},{1158,960},{1158,1140},{42,1410}},Ink)
+polygon(poster,{{42,1450},{1158,1250},{1158,1465},{42,1560}},Green)
+rectangle(poster,61,61,1139,211,Ink)
+label(poster,'JESS',82,65,150,Lavender,550)
+rectangle(poster,737,93,1139,100,Atom)
+label(poster,'THE FUTURE',66,252,118,Paper,1064)
+label(poster,'WILL NOT',65,374,130,Paper,1064)
+label(poster,'BUILD ITSELF.',65,507,122,Atom,1066)
+polygon(poster,{{65,786},{486,691},{516,712},{85,826}},Ink)
+polygon(poster,{{1094,847},{732,718},{721,743},{1126,895}},Ink)
+worker(poster,252,1023,0.77,-7,Shade,Lavender,Lavender,false)
+worker(poster,913,1012,0.76,9,Shade,Lilac,Atom,true)
+worker(poster,579,825,1.13,-3,Green,Paper,Lilac,false)
+rectangle(poster,42,1495,1158,1598,Atom)
+label(poster,'TAKE THE TOOLS.',71,1490,102,Ink,1054)
+rectangle(poster,42,1598,1158,1758,Ink)
+label(poster,'BUILD WHAT COMES NEXT.',69,1624,69,Lavender,1040)
+rectangle(poster,72,1714,1127,1718,Atom)
+
+local banner = scene(1920,128,Ink)
+rectangle(banner,0,0,1920,128,Plum)
+polygon(banner,{{0,0},{525,0},{365,128},{0,128}},Purple)
+polygon(banner,{{0,0},{324,0},{210,128},{0,128}},Lavender)
+polygon(banner,{{100,128},{505,0},{558,0},{169,128}},Green)
+polygon(banner,{{130,128},{529,0},{574,0},{186,128}},Atom)
+polygon(banner,{{295,128},{651,0},{762,0},{438,128}},Ink)
+polygon(banner,{{388,128},{696,0},{758,0},{464,128}},Purple)
+worker(banner,300,22,0.43,-12,Shade,Lavender,Atom,false,false)
+worker(banner,598,25,0.47,9,Shade,Paper,Lavender,true,false)
+rectangle(banner,733,0,1920,128,Ink)
+rectangle(banner,745,13,750,116,Atom)
+label(banner,'JESS',778,9,96,Lavender,390)
+label(banner,'THE FUTURE WILL NOT BUILD ITSELF.',1199,74,28,Atom,650)
+rectangle(banner,1245,32,1856,36,Atom)
+polygon(banner,{{1852,92},{1868,92},{1868,108},{1852,108}},Atom)
+
+local linkedin = scene(1584,396,Ink)
+rectangle(linkedin,0,0,1584,396,Ink)
+polygon(linkedin,{{0,0},{561,0},{255,396},{0,396}},Purple)
+polygon(linkedin,{{0,0},{360,0},{65,396},{0,396}},Lavender)
+polygon(linkedin,{{0,0},{137,0},{0,168}},Plum)
+polygon(linkedin,{{0,396},{575,0},{638,0},{100,396}},Green)
+polygon(linkedin,{{28,396},{579,0},{635,0},{105,396}},Atom)
+polygon(linkedin,{{250,396},{615,0},{704,0},{365,396}},Ink)
+polygon(linkedin,{{299,396},{647,0},{694,0},{367,396}},Plum)
+polygon(linkedin,{{386,396},{693,0},{717,0},{414,396}},Purple)
+-- Deep Plum secondary stripe for contrast behind the Lavender left hand.
+polygon(linkedin,{{197,0},{396,0},{145,396},{0,396}},Plum)
+worker(linkedin,275,94,0.72,9,Shade,Lavender,Atom,false,false)
+worker(linkedin,523,238,0.69,-11,Green,Paper,Lavender,true,false)
+rectangle(linkedin,685,0,1584,396,Ink)
+rectangle(linkedin,702,45,710,353,Atom)
+rectangle(linkedin,738,45,1536,49,Atom)
+label(linkedin,'SYSTEMS  /  TOOLS  /  GAME TECH',737,61,24,Paper,800,true)
+label(linkedin,'S3KSHUN8',733,95,137,Lavender,814)
+rectangle(linkedin,737,238,1505,244,Purple)
+rectangle(linkedin,737,251,861,257,Atom)
+label(linkedin,'BUILD WHAT COMES NEXT.',733,274,61,Atom,811)
+rectangle(linkedin,738,357,1538,360,Lavender)
+polygon(linkedin,{{1526,344},{1542,344},{1542,360},{1526,360}},Atom)
+
+return { poster = poster, banner = banner, linkedin = linkedin }
