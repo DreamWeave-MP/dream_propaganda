@@ -1,0 +1,74 @@
+{
+  "alt": "A propaganda-style cover. On the left, on black: OWN YOUR TOOLS. OWN YOUR ART. Jess, an application ecosystem for the agentic era. On the right, under purple rays, a lone figure raises an arm before a monumental machine whose glowing core wires together scripts, packages, graphics and audio over a bus of scripting, engine, tooling and deployment.",
+  "altFile": "jess-linkedin.txt",
+  "copy": {
+    "destination": "dreamweave-mp.github.io/jess",
+    "headline": [
+      "OWN YOUR\nTOOLS.",
+      "OWN YOUR\nART."
+    ],
+    "name": "Jess",
+    "tagline": "An application ecosystem\nfor the agentic era."
+  },
+  "cover": "jess",
+  "file": "jess-linkedin.png",
+  "height": 1080,
+  "inputs": {
+    "fonts": [
+      {
+        "family": "Noto Sans",
+        "file": "NotoSans-CondensedBlack.ttf",
+        "role": "display",
+        "sha256": "279ce2b4aae61db0ad8edd5fcca51786628f41f5f7e0d9f0bbf4ca5315f6a4bf",
+        "subfamily": "Condensed Black",
+        "version": "Version 2.015; ttfautohint (v1.8.4.7-5d5b)"
+      },
+      {
+        "family": "Noto Sans",
+        "file": "NotoSans-Medium.ttf",
+        "role": "support",
+        "sha256": "635d93d1131d791f2576de90b3bb0f7cdf61929906e8420a61b5f7f8e76420bb",
+        "subfamily": "Medium",
+        "version": "Version 2.015; ttfautohint (v1.8.4.7-5d5b)"
+      },
+      {
+        "family": "Noto Sans Mono",
+        "file": "NotoSansMono-Bold.ttf",
+        "role": "mono",
+        "sha256": "a21ea0ba6ea49fda7b34ca39a504b487f1130885d36e1a4f9f4255b3ba6994bc",
+        "subfamily": "Bold",
+        "version": "Version 2.014; ttfautohint (v1.8.4.7-5d5b)"
+      },
+      {
+        "family": "Oxanium",
+        "file": "Oxanium-SemiBold.ttf",
+        "role": "brand",
+        "sha256": "b11e06346cdba8718fd20ea31f780612c11c2a1a5f31d35713367bd5ff6b2974",
+        "subfamily": "SemiBold",
+        "version": "Version 1.000"
+      }
+    ]
+  },
+  "palette": {
+    "amber": "#FFB000",
+    "black": "#070707",
+    "body": "#F0F0F0",
+    "lavender": "#DA96E0",
+    "orchid": "#A269A7",
+    "pinkwhite": "#FFE6FF",
+    "shadow": "#290430",
+    "violet": "#6B3F6F"
+  },
+  "renderer": {
+    "jess": "0.2.1",
+    "package": "org.dreamweave.dream-propaganda",
+    "requires": {
+      "org.dreamweave.magick": "0.1.3",
+      "org.dreamweave.truetype": "0.1"
+    },
+    "version": "0.1.0"
+  },
+  "sha256": "4f4be29b1919384f628be85c26c5aab83a6b9b72b57452603fbb6673c1761665",
+  "size": "1920x1080",
+  "width": 1920
+}
